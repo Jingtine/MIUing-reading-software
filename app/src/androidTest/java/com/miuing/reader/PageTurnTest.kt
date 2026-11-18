@@ -68,6 +68,72 @@ class PageTurnTest {
             }
         } finally {id?.let {LibraryStore(context).delete(it)};file.delete();prefs.edit().clear().commit()}
     }
+    private fun withAnimationScale(scale:String,block:()->Unit) {
+        val previous=device.executeShellCommand("settings get global animator_duration_scale").trim()
+        try {device.executeShellCommand("settings put global animator_duration_scale $scale");block()}
+        finally {device.executeShellCommand(if(previous=="null") "settings delete global animator_duration_scale" else "settings put global animator_duration_scale $previous")}
+    }
+    private fun rawJs(view:WebView,code:String):String {
+        val latch=CountDownLatch(1);var result=""
+        instrument.runOnMainSync {view.evaluateJavascript(code) {result=it;latch.countDown()}}
+        assertTrue("JavaScript did not respond",latch.await(10,TimeUnit.SECONDS));return result
+    }
+    @Test fun freshTapAfterSwipeIsAcceptedWithoutItsSyntheticClick()=withAnimationScale("0") {
+        fixture {s,_->
+            js(s,"""(()=>{
+                const target=document.body,w=window.miuingWidth,h=window.miuingHeight;
+                function touch(name,x) {const e=new Event(name,{bubbles:true,cancelable:true});Object.defineProperty(e,'changedTouches',{value:[{clientX:x,clientY:h*.5}]});target.dispatchEvent(e)}
+                function click() {target.dispatchEvent(new MouseEvent('click',{bubbles:true,detail:1,clientX:w*.92,clientY:h*.5}))}
+                touch('touchstart',w*.8);touch('touchend',w*.2);click();
+                touch('touchstart',w*.92);touch('touchend',w*.92);click();
+            })()""")
+            awaitJs(s,"window.miuingProgress()>0")
+            assertEquals("A swipe and a distinct fresh tap must count twice, without the swipe's synthetic click",2.0,js(s,"document.getElementById('miuing-scroll').scrollLeft/window.miuingWidth").toDouble(),.02)
+        }
+    }
+    @Test fun rapidTurnDuringAnimationIsNotDropped()=withAnimationScale("3") {
+        fixture {s,_->
+            var view:WebView?=null;var root:View?=null
+            s.onActivity {view=web(it.window.decorView);root=it.window.decorView}
+            val click="document.body.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:window.miuingWidth*.92,clientY:window.miuingHeight*.5}))"
+            rawJs(view!!,click)
+            var active=false;val by=System.currentTimeMillis()+3000
+            while(!active && System.currentTimeMillis()<by) {instrument.runOnMainSync {active=overlay(root!!)!!.visibility==View.VISIBLE};if(!active) Thread.sleep(10)}
+            assertTrue("The interruption must happen during an actual animation",active)
+            rawJs(view!!,click)
+            // Inspect without ActivityScenario's idle barrier, while the old turn
+            // would otherwise still be running at three times the system duration.
+            var turns=0.0;val advancedBy=System.currentTimeMillis()+3000
+            while(turns<1.9 && System.currentTimeMillis()<advancedBy) {
+                turns=rawJs(view!!,"document.getElementById('miuing-scroll').scrollLeft/window.miuingWidth").toDouble()
+                if(turns<1.9) Thread.sleep(20)
+            }
+            assertEquals("A new turn was lost while the previous snapshot was active",2.0,turns,.02)
+            instrument.runOnMainSync {assertEquals("Interrupted animation retained its snapshot",View.GONE,overlay(root!!)!!.visibility)}
+        }
+    }
+    @Test fun delayedSwipeClickIsIgnoredButKeyboardClickWorks()=withAnimationScale("0") {
+        fixture {s,_->
+            js(s,"""(()=>{
+                const w=window.miuingWidth,h=window.miuingHeight,target=document.body;
+                for(const pair of [['touchstart',w*.8],['touchend',w*.2]]) {
+                    const e=new Event(pair[0],{bubbles:true,cancelable:true});
+                    Object.defineProperty(e,'changedTouches',{value:[{clientX:pair[1],clientY:h*.5}]});target.dispatchEvent(e);
+                }
+            })()""")
+            awaitJs(s,"window.miuingProgress()>0")
+            Thread.sleep(500)
+            js(s,"document.body.dispatchEvent(new MouseEvent('click',{bubbles:true,detail:1,clientX:window.miuingWidth*.2,clientY:window.miuingHeight*.5}))")
+            Thread.sleep(250)
+            assertEquals("A delayed synthetic swipe click must not turn backward",1.0,js(s,"document.getElementById('miuing-scroll').scrollLeft/window.miuingWidth").toDouble(),.02)
+            js(s,"document.body.dispatchEvent(new MouseEvent('click',{bubbles:true,detail:0,clientX:window.miuingWidth*.92,clientY:window.miuingHeight*.5}))")
+            awaitJs(s,"document.getElementById('miuing-scroll').scrollLeft/window.miuingWidth>1.9")
+            assertEquals("Touch suppression must not block keyboard/accessibility activation",2.0,js(s,"document.getElementById('miuing-scroll').scrollLeft/window.miuingWidth").toDouble(),.02)
+            js(s,"document.body.dispatchEvent(new Event('pointerdown',{bubbles:true}));document.body.dispatchEvent(new MouseEvent('click',{bubbles:true,detail:1,clientX:window.miuingWidth*.92,clientY:window.miuingHeight*.5}))")
+            awaitJs(s,"document.getElementById('miuing-scroll').scrollLeft/window.miuingWidth>2.9")
+            assertEquals("A fresh mouse/pen pointer must start a new gesture",3.0,js(s,"document.getElementById('miuing-scroll').scrollLeft/window.miuingWidth").toDouble(),.02)
+        }
+    }
     @Test fun longChapterKeepsItsFirstAndLastPagesReachable()=fixture(chapters=1) {s,_->
         js(s,"(()=>{const page='<p style=\"margin:0;height:'+ (window.miuingConfig.height-2*window.miuingConfig.margin)+'px;break-after:column\">A complete page in a long chapter.</p>';document.getElementById('miuing-content').insertAdjacentHTML('beforeend',page.repeat(420));window.miuingJump(0)})()")
         assertEquals("Fixture must exceed 202 viewports","true",js(s,"document.getElementById('miuing-scroll').scrollWidth/window.miuingWidth>202"))
@@ -80,6 +146,7 @@ class PageTurnTest {
         assertTrue("Long chapter boundary pages were skipped: last=$lastReached, first=$firstReached",lastReached=="true" && firstReached=="true")
     }
     @Test fun oneTurnPerGestureAndReverseChapterLanding()=fixture {s,_->
+        js(s,"window.gestureTrace=[];['touchstart','touchend','click'].forEach(name=>document.addEventListener(name,e=>window.gestureTrace.push({name,time:Date.now(),x:e.changedTouches?e.changedTouches[0].clientX:e.clientX,detail:e.detail,selection:getSelection().toString(),page:document.getElementById('miuing-scroll').scrollLeft/window.miuingWidth})))")
         tap(s,.08f);Thread.sleep(400)
         assertEquals("First chapter should remain at its beginning",0.0,js(s,"window.miuingProgress()").toDouble(),.001)
         tap(s,.92f)
@@ -88,7 +155,7 @@ class PageTurnTest {
         var x=0;var y=0;var width=0
         s.onActivity {val w=web(it.window.decorView)!!;val p=IntArray(2);w.getLocationOnScreen(p);x=p[0];y=p[1]+w.height/2;width=w.width}
         device.swipe(x+width*4/5,y,x+width/5,y,20);Thread.sleep(650)
-        assertEquals("Swipe must advance once without native scrolling or a synthetic click",2.0,js(s,"document.getElementById('miuing-scroll').scrollLeft/window.miuingWidth").toDouble(),.02)
+        assertEquals("Swipe must advance once without native scrolling or a synthetic click; "+js(s,"JSON.stringify(window.gestureTrace)"),2.0,js(s,"document.getElementById('miuing-scroll').scrollLeft/window.miuingWidth").toDouble(),.02)
         js(s,"window.miuingJump(0)");Thread.sleep(200)
         js(s,"(()=>{const r=document.createRange();r.selectNodeContents(document.getElementById('chapter0'));getSelection().removeAllRanges();getSelection().addRange(r)})()")
         tap(s,.92f);Thread.sleep(400)

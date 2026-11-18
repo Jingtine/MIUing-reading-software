@@ -18,10 +18,18 @@ class PageTurnOverlay(context:Context):View(context) {
     private var style="curl"
     private var paper=Color.WHITE
     private val paint=Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private val target=RectF()
+    private val foldPath=Path()
+    private val shaderMatrix=Matrix()
+    // Normalized shaders are repositioned with a matrix, not rebuilt per frame.
+    private val foldShade=LinearGradient(0f,0f,1f,0f,intArrayOf(0x50000000,0x08000000,0x28000000),floatArrayOf(0f,.5f,1f),Shader.TileMode.CLAMP)
+    private val edgeShade=LinearGradient(0f,0f,1f,0f,0x40000000,Color.TRANSPARENT,Shader.TileMode.CLAMP)
     init {visibility=GONE;importantForAccessibility=IMPORTANT_FOR_ACCESSIBILITY_NO}
 
     fun turn(web:WebView,mode:String,forward:Int,paperColor:Int,advance:(()->Unit)->Unit) {
-        if(snapshot!=null) return
+        // A fresh turn ends the old visual transition instead of dropping input
+        // or allocating another snapshot during rapid navigation.
+        if(snapshot!=null) {clear();advance {};return}
         if(!ValueAnimator.areAnimatorsEnabled() || web.width<=0 || web.height<=0) {advance {};return}
         val scale=min(1f,min(1200f/web.width,min(2000f/web.height,sqrt(2_000_000f/(web.width.toFloat()*web.height)))))
         var captured:Bitmap?=null
@@ -51,30 +59,35 @@ class PageTurnOverlay(context:Context):View(context) {
         snapshot?.recycle();snapshot=null;visibility=GONE;invalidate()
     }
     override fun onDetachedFromWindow() {clear();super.onDetachedFromWindow()}
+    private fun drawSnapshot(canvas:Canvas,image:Bitmap,alpha:Int=255) {
+        val state=canvas.save()
+        if(direction<0) {canvas.translate(width.toFloat(),0f);canvas.scale(-1f,1f)}
+        paint.alpha=alpha;canvas.drawBitmap(image,null,target,paint);paint.alpha=255;canvas.restoreToCount(state)
+    }
+    private fun placeShade(shader:Shader,left:Float,span:Float) {
+        shaderMatrix.setScale(span,1f);shaderMatrix.postTranslate(left,0f)
+        shader.setLocalMatrix(shaderMatrix);paint.shader=shader
+    }
     override fun onDraw(canvas:Canvas) {
         val image=snapshot ?: return
-        val w=width.toFloat();val h=height.toFloat();val target=RectF(0f,0f,w,h)
+        val w=width.toFloat();val h=height.toFloat();target.set(0f,0f,w,h)
         paint.shader=null
         if(style=="fade") {paint.alpha=((1-fraction)*255).toInt();canvas.drawBitmap(image,null,target,paint);paint.alpha=255;return}
         val saved=canvas.save()
         if(direction<0) {canvas.translate(w,0f);canvas.scale(-1f,1f)}
-        fun drawOld(alpha:Int=255) {
-            val state=canvas.save()
-            if(direction<0) {canvas.translate(w,0f);canvas.scale(-1f,1f)}
-            paint.alpha=alpha;canvas.drawBitmap(image,null,target,paint);paint.alpha=255;canvas.restoreToCount(state)
-        }
         val edge=w*(1-fraction);val fold=min(w*.28f*sin(Math.PI.toFloat()*fraction),w-edge)
-        val old=canvas.save();canvas.clipRect(0f,0f,edge,h);drawOld();canvas.restoreToCount(old)
+        val old=canvas.save();canvas.clipRect(0f,0f,edge,h);drawSnapshot(canvas,image);canvas.restoreToCount(old)
         if(fold>1f) {
-            val path=Path().apply {
+            foldPath.rewind()
+            foldPath.apply {
                 moveTo(edge,0f);quadTo(edge+fold*.65f,h*.015f,edge+fold,h*.06f)
                 lineTo(edge+fold,h*.94f);quadTo(edge+fold*.65f,h*.985f,edge,h);close()
             }
-            val back=canvas.save();canvas.clipPath(path);canvas.drawColor(paper)
-            canvas.save();canvas.translate(2*edge,0f);canvas.scale(-1f,1f);drawOld(45);canvas.restore()
-            paint.shader=LinearGradient(edge,0f,edge+fold,0f,intArrayOf(0x50000000,0x08000000,0x28000000),floatArrayOf(0f,.5f,1f),Shader.TileMode.CLAMP)
-            canvas.drawPath(path,paint);paint.shader=null;canvas.restoreToCount(back)
-            paint.shader=LinearGradient(edge+fold,0f,edge+fold+w*.035f,0f,0x40000000,Color.TRANSPARENT,Shader.TileMode.CLAMP)
+            val back=canvas.save();canvas.clipPath(foldPath);canvas.drawColor(paper)
+            canvas.save();canvas.translate(2*edge,0f);canvas.scale(-1f,1f);drawSnapshot(canvas,image,45);canvas.restore()
+            placeShade(foldShade,edge,fold)
+            canvas.drawPath(foldPath,paint);paint.shader=null;canvas.restoreToCount(back)
+            placeShade(edgeShade,edge+fold,w*.035f)
             canvas.drawRect(edge+fold,0f,edge+fold+w*.035f,h,paint);paint.shader=null
         }
         canvas.restoreToCount(saved)

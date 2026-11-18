@@ -2,7 +2,7 @@
 
 Android 手机与平板离线阅读器，按 Apple Books 的书库组织与阅读体验开发。使用用户提供的猫咪 M 图标。
 
-当前为 **0.4.0 开发版**，不是已完成的 Apple Books 完整复刻。功能与视觉对齐进度见 [对照清单](docs/reference/parity.md)。
+当前为 **0.4.1 开发版**，不是已完成的 Apple Books 完整复刻。功能与视觉对齐进度见 [对照清单](docs/reference/parity.md)。
 
 ## 当前可用
 
@@ -11,6 +11,7 @@ Android 手机与平板离线阅读器，按 Apple Books 的书库组织与阅�
 - 欲读清单、已读完、自定义藏书及书籍菜单。
 - EPUB/TXT 翻页与滚动、EPUB3/NCX 层级目录和段落跳转、正文搜索、书签、正文锚点定位。
 - EPUB/TXT 卷页与快速淡入淡出效果，在“主题与设置”中选择；遵循系统关闭动画设置。向前跨章落在上一章末尾，超长章节按实际距离判断翻页边界。
+- 快速连续翻页可中断旧动画，及时响应新操作；翻页路径、渐变及矩形复用，减少每帧创建绘制对象。
 - 六种阅读主题、字号、衬线字体、行距、页边距、字间距和应用内亮度设置。
 - EPUB/TXT 精确文字高亮（重复文字、跨段落）与笔记编辑。
 - PDF 逐页阅读、缩放、页码与内嵌目录跳转、正文搜索、长按拖选、文字高亮与笔记。
@@ -29,11 +30,12 @@ $env:JAVA_HOME = '你的 JDK 17 安装路径'
 .\gradlew.bat :core:check :app:assembleDebug :app:lintDebug
 ```
 
-APK：`app/build/outputs/apk/debug/app-debug.apk`，当前约 25.7 MiB。该 APK 使用开发签名，供本地安装测试。
+APK：`app/build/outputs/apk/debug/app-debug.apk`，当前约 25.4 MiB。该 APK 使用开发签名，供本地安装测试。
 
 PDF 搜索入口在阅读页底部；长按文字后可高亮或添加笔记，顶部画笔可进入手写模式，导出按钮通过系统文件选择器保存带批注的副本。扫描 PDF 暂无 OCR。实现与验证记录见 [PDF 0.3 开发记录](docs/pdf-parity-0.3.md)。
 
 卷页效果及手势修复记录见 [翻页 0.4 开发记录](docs/page-turns-0.4.md)。
+连续操作与绘制优化见 [0.4.1 优化记录](docs/turn-optimization-0.4.1.md)。
 
 本工作区额外在 `.tools` 中下载了 Gradle 与 Android SDK，均不纳入版本控制。若官方 Gradle 下载受网络限制，可使用本机已校验的 `.tools/gradle-8.13/bin/gradle.bat` 运行同样的任务。
 

@@ -1,7 +1,7 @@
 /* Application-owned renderer. Book-authored scripts remain blocked by CSP. */
 (() => {
   if (window.miuingConfigure) return;
-  let config, shell, flow, restoring = false, timer, selectionTimer, sx = 0, sy = 0, suppressClickUntil = 0, touchAt = 0, selectedAtTouch = false;
+  let config, shell, flow, restoring = false, timer, selectionTimer, sx = 0, sy = 0, suppressTouchClick = false, touchAt = 0, selectedAtTouch = false;
   function textNodes() {
     const walker = document.createTreeWalker(flow, NodeFilter.SHOW_TEXT);
     const result = []; let node, offset = 0;
@@ -131,18 +131,22 @@
     else if (typeof MIUing.turn === 'function') MIUing.turn(direction);
     else window.miuingAdvance(direction);
   }
+  document.addEventListener('pointerdown', () => { suppressTouchClick=false; }, { passive:true });
   document.addEventListener('touchstart', e => {
+    suppressTouchClick=false;
     sx = e.changedTouches[0].clientX; sy = e.changedTouches[0].clientY; touchAt=Date.now();
     selectedAtTouch=!!getSelection().toString();
   }, { passive:true });
   document.addEventListener('touchend', e => {
     if (!config || config.scrolling || e.target.closest('a')) return;
-    if (selectedAtTouch || getSelection().toString() || Date.now()-touchAt>600) {suppressClickUntil=Date.now()+400;return;}
+    if (selectedAtTouch || getSelection().toString() || Date.now()-touchAt>600) {suppressTouchClick=true;return;}
     const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
-    if (Math.abs(dx)>55 && Math.abs(dx)>Math.abs(dy)) { suppressClickUntil=Date.now()+400;turn(dx<0?1:-1); e.preventDefault(); }
+    if (Math.abs(dx)>55 && Math.abs(dx)>Math.abs(dy)) { suppressTouchClick=true;turn(dx<0?1:-1); e.preventDefault(); }
   }, { passive:false });
   document.addEventListener('click', e => {
-    if (!config || Date.now()<suppressClickUntil || e.target.closest('a') || getSelection().toString()) return;
+    // Keep suppressing this touch's click even if rendering delays its delivery.
+    // A new pointer/touch resets the latch; detail=0 activates via keyboard/AT.
+    if (!config || (suppressTouchClick && e.detail!==0) || e.target.closest('a') || getSelection().toString()) return;
     if (!config.scrolling && e.clientX<config.width*.22) turn(-1);
     else if (!config.scrolling && e.clientX>config.width*.78) turn(1);
     else MIUing.tap();
