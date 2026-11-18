@@ -2,6 +2,9 @@
 (() => {
   if (window.miuingConfigure) return;
   let config, shell, flow, restoring = false, timer, selectionTimer, sx = 0, sy = 0, suppressTouchClick = false, touchAt = 0, selectedAtTouch = false;
+  let retainedAnchor = -1, layoutRevision = 0;
+  let hasPosition = false, pendingInitial = null;
+  const publisherTextStyles = new Map();
   function textNodes() {
     const walker = document.createTreeWalker(flow, NodeFilter.SHOW_TEXT);
     const result = []; let node, offset = 0;
@@ -46,15 +49,22 @@
     return Math.max(0, config.scrolling ? shell.scrollHeight - shell.clientHeight : shell.scrollWidth - shell.clientWidth);
   }
   window.miuingProgress = () => extent() ? (config.scrolling ? shell.scrollTop : shell.scrollLeft) / extent() : 0;
-  window.miuingJump = fraction => shell.scrollTo(config.scrolling ? 0 : fraction * extent(), config.scrolling ? fraction * extent() : 0);
+  function beginNavigation() {retainedAnchor=-1;layoutRevision++;restoring=false;hasPosition=true;pendingInitial=null;clearTimeout(timer);}
+  function jumpFraction(fraction) {
+    const at=Math.max(0,Math.min(1,fraction))*extent();
+    const page=fraction>=1?extent():Math.min(extent(),Math.round(at/config.width)*config.width);
+    shell.scrollTo(config.scrolling ? 0 : page, config.scrolling ? at : 0);
+  }
+  window.miuingJump = fraction => {beginNavigation();jumpFraction(fraction);publish();};
   function locateRect(rect) {
     const box = shell.getBoundingClientRect();
     if (config.scrolling) shell.scrollTop += rect.top - box.top - config.margin;
     else shell.scrollLeft = Math.max(0, Math.floor((rect.left - box.left + shell.scrollLeft - config.margin + 1) / config.width) * config.width);
   }
-  window.miuingJumpAnchor = offset => { const range = rangeAt(offset); if (range) locateRect(range.getBoundingClientRect()); };
+  function jumpAnchor(offset) {const range=rangeAt(offset);if(range) locateRect(range.getBoundingClientRect());}
+  window.miuingJumpAnchor = offset => {beginNavigation();retainedAnchor=offset;jumpAnchor(offset);publish();};
   function publish() {
-    if (!restoring) MIUing.progress(window.miuingProgress(), window.miuingAnchor());
+    if (!restoring) MIUing.progress(window.miuingProgress(), retainedAnchor>=0?retainedAnchor:window.miuingAnchor());
   }
   function highlights(notes) {
     flow.querySelectorAll('mark[data-miuing]').forEach(mark => mark.replaceWith(...mark.childNodes));
@@ -75,9 +85,40 @@
       }
     }
   }
+  function textStyleOverrides(family, next) {
+    // Restore exact publisher attributes before applying the new reader choice.
+    for(const [element,style] of publisherTextStyles) {
+      if(style===null) element.removeAttribute('style');else element.setAttribute('style',style);
+    }
+    publisherTextStyles.clear();
+    if(!family && !next.bold && next.customLayout===false) return;
+    const parents=new Set();
+    for(const entry of textNodes()) {
+      if(!entry.node.data.trim() || /^[\s\uE000-\uF8FF\u2000-\u2BFF]+$/.test(entry.node.data)) continue;
+      const first=entry.node.parentElement;
+      if(first.closest('svg,math,pre,code,kbd,samp') || /symbol|icon|dingbat|wingding|fontawesome/i.test(getComputedStyle(first).fontFamily)) continue;
+      for(let parent=first;parent && parent!==flow;parent=parent.parentElement) parents.add(parent);
+    }
+    // Gather first, then mutate: avoid interleaving style reads with writes.
+    for(const parent of parents) {
+      publisherTextStyles.set(parent,parent.getAttribute('style'));
+      if(family) parent.style.setProperty('font-family',family,'important');
+      if(next.bold) parent.style.setProperty('font-weight','700','important');
+      if(next.customLayout!==false) {
+        parent.style.setProperty('line-height',String(next.lineHeight),'important');
+        parent.style.setProperty('letter-spacing',`${next.letterSpacing || 0}em`,'important');
+        parent.style.setProperty('word-spacing',`${next.wordSpacing || 0}em`,'important');
+        if(next.justify && parent.matches('p,li,blockquote,td,dd')) parent.style.setProperty('text-align','justify','important');
+      }
+    }
+  }
   window.miuingConfigure = next => {
     if (config && JSON.stringify(config) === JSON.stringify(next)) return;
-    const previous = config ? { anchor: window.miuingAnchor(), position: window.miuingProgress() } : null;
+    const previous = config && hasPosition ? { anchor: retainedAnchor>=0?retainedAnchor:window.miuingAnchor(), position: window.miuingProgress() } : null;
+    if(!config) pendingInitial={anchor:next.anchor>=0?next.anchor:-1,fragment:next.fragment || '',position:next.position || 0};
+    const destination=previous || pendingInitial || {anchor:-1,position:0,fragment:''};
+    retainedAnchor=destination.anchor>=0?destination.anchor:-1;
+    const revision=++layoutRevision;clearTimeout(timer);
     config = next; window.miuingConfig = next;
     window.miuingWidth = next.width; window.miuingHeight = next.height;
     restoring = true;
@@ -85,26 +126,36 @@
       flow = document.createElement('main'); flow.id = 'miuing-content';
       while (document.body.firstChild) flow.appendChild(document.body.firstChild);
       shell = document.createElement('div'); shell.id = 'miuing-scroll'; shell.appendChild(flow); document.body.appendChild(shell);
-      shell.addEventListener('scroll', () => { clearTimeout(timer); timer = setTimeout(publish, 180); });
+      shell.addEventListener('scroll', () => {if(restoring) return;retainedAnchor=-1;clearTimeout(timer);timer=setTimeout(publish,180);});
     }
     let style = document.getElementById('miuing-style');
     if (!style) { style = document.createElement('style'); style.id = 'miuing-style'; document.head.appendChild(style); }
     const w = next.width, h = next.height, m = next.margin, available = w - 2 * m;
     const column = w >= 900 ? (w - 4 * m) / 2 : available;
+    const families={serif:'serif',sans:'sans-serif',mono:'monospace'};
+    const family=next.fontFamily==='book'?null:(families[next.fontFamily] || (next.serif?'serif':'sans-serif'));
+    const fontCss=family?`font-family:${family}!important;`:'';
+    const layoutCss=next.customLayout===false?'':`line-height:${next.lineHeight}!important;letter-spacing:${next.letterSpacing}em!important;word-spacing:${next.wordSpacing || 0}em!important;`;
     style.textContent = `
       html,body{margin:0!important;padding:0!important;width:${w}px!important;height:${h}px!important;overflow:hidden!important;background:${next.paper}!important;color:${next.ink}!important}
-      body{font-size:${next.fontSize}px!important;line-height:${next.lineHeight}!important;letter-spacing:${next.letterSpacing}em!important;font-family:${next.serif?'serif':'sans-serif'}!important;font-weight:${next.bold?700:400}!important;overflow-wrap:break-word}
+      body{font-size:${next.fontSize}px!important;${layoutCss}${fontCss}${next.bold?'font-weight:700!important;':''}overflow-wrap:break-word}
       #miuing-scroll{width:${w}px;height:${h}px;overflow-x:hidden;overflow-y:${next.scrolling?'auto':'hidden'};scrollbar-width:none}
       #miuing-content{box-sizing:content-box;width:${available}px;margin:${m}px;${next.scrolling?`max-width:760px;margin:${m}px auto;padding:0 ${m}px;`:`height:${h-2*m}px;column-width:${column}px;column-gap:${2*m}px;column-fill:auto;`}}
-      p{font-size:inherit!important;line-height:inherit!important;color:inherit!important}img,svg{max-width:100%!important;max-height:${h-2*m}px!important;object-fit:contain}mark[data-miuing]{background:#e8ce6c;color:inherit}
+      p{font-size:inherit!important;${next.customLayout===false?'':'line-height:inherit!important;letter-spacing:inherit!important;word-spacing:inherit!important;'}color:inherit!important;${next.justify?'text-align:justify!important;':''}}img,svg{max-width:100%!important;max-height:${h-2*m}px!important;object-fit:contain}mark[data-miuing]{background:#e8ce6c;color:inherit}
     `;
     highlights(next.notes || []);
+    textStyleOverrides(family,next);
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      if (previous && previous.anchor >= 0) window.miuingJumpAnchor(previous.anchor);
-      else if (!previous && next.fragment && document.getElementById(next.fragment)) locateRect(document.getElementById(next.fragment).getBoundingClientRect());
-      else if (!previous && next.anchor >= 0) window.miuingJumpAnchor(next.anchor);
-      else window.miuingJump(previous ? previous.position : next.position);
-      restoring = false; publish();
+      if(revision!==layoutRevision) return;
+      if (previous && previous.anchor >= 0) jumpAnchor(previous.anchor);
+      else if (!previous && destination.fragment && document.getElementById(destination.fragment)) {retainedAnchor=-1;locateRect(document.getElementById(destination.fragment).getBoundingClientRect());}
+      else if (destination.anchor >= 0) jumpAnchor(destination.anchor);
+      else jumpFraction(destination.position);
+      if(retainedAnchor<0) retainedAnchor=window.miuingAnchor();
+      hasPosition=true;pendingInitial=null;
+      // Keep one logical passage through consecutive layout changes. Page starts
+      // differ across fonts; repeatedly capturing them would drift backward.
+      requestAnimationFrame(()=>{if(revision===layoutRevision) {restoring=false;publish();}});
     }));
   };
   document.addEventListener('selectionchange', () => {
@@ -119,6 +170,7 @@
   });
   window.miuingAdvance = direction => {
     if (!config || config.scrolling || getSelection().toString()) return;
+    beginNavigation();
     const remaining = extent() - shell.scrollLeft;
     if (direction > 0 && remaining <= config.width + 1) shell.scrollLeft = extent();
     else if (direction < 0 && shell.scrollLeft <= config.width + 1) shell.scrollLeft = 0;

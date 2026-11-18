@@ -28,16 +28,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 
-data class ReadingTheme(val name:String,val paper:Color,val ink:Color)
-val ReadingThemes=listOf(
-    ReadingTheme("原始",Color(0xFFFFFCF7),Color(0xFF24211E)),
-    ReadingTheme("安静",Color(0xFF252525),Color(0xFFE1DED8)),
-    ReadingTheme("纸张",Color(0xFFF1E4CA),Color(0xFF3A3025)),
-    ReadingTheme("粗体",Color.White,Color.Black),
-    ReadingTheme("平静",Color(0xFFE2E6DA),Color(0xFF30382F)),
-    ReadingTheme("专注",Color(0xFFE9E7E3),Color(0xFF272523))
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun ReaderScreen(initial:Book,store:LibraryStore,onClose:()->Unit) {
     val book=store.books.first { it.id==initial.id }
@@ -89,11 +79,12 @@ val ReadingThemes=listOf(
     var themeIndex by rememberSaveable { mutableIntStateOf(preferences.getInt("theme",0).coerceIn(0,5)) }
     var fontSize by rememberSaveable { mutableFloatStateOf(preferences.getFloat("size",20f)) }
     var scrolling by rememberSaveable { mutableStateOf(preferences.getBoolean("scroll",false)) }
+    var themeOpen by rememberSaveable {mutableStateOf(false)}
     var pageTurn by rememberSaveable {mutableStateOf(preferences.getString("pageTurn","curl").let {if(it=="fade") "fade" else "curl"})}
-    var serif by rememberSaveable { mutableStateOf(preferences.getBoolean("serif",true)) }
-    var lineHeight by rememberSaveable { mutableFloatStateOf(preferences.getFloat("lineHeight",1.85f)) }
-    var margin by rememberSaveable { mutableFloatStateOf(preferences.getFloat("margin",24f)) }
-    var letterSpacing by rememberSaveable { mutableFloatStateOf(preferences.getFloat("letterSpacing",0f)) }
+    val optionsStore=remember(preferences) {ThemeOptionsStore(preferences)}
+    var options by remember(themeIndex) {mutableStateOf(optionsStore.load(themeIndex))}
+    val effectiveOptions=options.effective(themeIndex)
+    var appearance by rememberSaveable {mutableStateOf(preferences.getString("appearance","system") ?: "system")}
     var brightness by rememberSaveable { mutableFloatStateOf(preferences.getFloat("brightness",-1f)) }
     val window=(context as? android.app.Activity)?.window
     DisposableEffect(window,brightness) {
@@ -101,7 +92,7 @@ val ReadingThemes=listOf(
         window?.attributes=window?.attributes?.apply { screenBrightness=brightness }
         onDispose { window?.attributes=window?.attributes?.apply { screenBrightness=original } }
     }
-    val theme=ReadingThemes[themeIndex]
+    val theme=readingTheme(themeIndex,appearance,isSystemInDarkTheme())
     LaunchedEffect(initial.id) {
         try { publication=withContext(Dispatchers.IO) { store.open(initial) } }
         catch(e:Exception) { error=e.localizedMessage ?: "无法打开图书" }
@@ -122,9 +113,9 @@ val ReadingThemes=listOf(
             finally {searching=false}
         }
     }
-    LaunchedEffect(themeIndex,fontSize,scrolling,serif) { preferences.edit().putInt("theme",themeIndex).putFloat("size",fontSize).putBoolean("scroll",scrolling).putBoolean("serif",serif).apply() }
+    LaunchedEffect(themeIndex,fontSize,scrolling) { preferences.edit().putInt("theme",themeIndex).putFloat("size",fontSize).putBoolean("scroll",scrolling).apply() }
     LaunchedEffect(pageTurn) {preferences.edit().putString("pageTurn",pageTurn).apply()}
-    LaunchedEffect(lineHeight,margin,letterSpacing,brightness) { preferences.edit().putFloat("lineHeight",lineHeight).putFloat("margin",margin).putFloat("letterSpacing",letterSpacing).putFloat("brightness",brightness).apply() }
+    LaunchedEffect(brightness,appearance) {preferences.edit().putFloat("brightness",brightness).putString("appearance",appearance).apply()}
     fun saveLocated(c:Int,p:Float,a:Int) {
         fragment=""
         chapter=c;position=p.coerceIn(0f,1f);anchor=a
@@ -145,7 +136,7 @@ val ReadingThemes=listOf(
                     store.update(b.copy(marks=if(existing!=null) b.marks-existing else b.marks+Mark(chapter,position,"${chapter+1} · ${(position*100).toInt()}%",anchor)))
                 }) { Icon(if(book.marks.any { it.chapter==chapter && kotlin.math.abs(it.position-position)<.015f }) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,"书签") }
                 IconButton(onClick={panel="目录"}) { Icon(Icons.AutoMirrored.Filled.List,"目录与书签") }
-                IconButton(onClick={panel="主题与设置"}) { Text("aA",fontSize=20.sp) }
+                IconButton(onClick={themeOpen=true}) { Text("aA",fontSize=20.sp) }
                 if(book.format=="PDF") {
                     IconButton(onClick={inkMode=!inkMode;selection=""}) {Icon(Icons.Default.Edit,"标记 PDF",tint=if(inkMode) Accent else theme.ink)}
                     IconButton(onClick={exportPdf.launch("${book.title}-标记.pdf")},enabled=!exportState.running) {Icon(Icons.Default.FileUpload,"导出 PDF")}
@@ -165,10 +156,11 @@ val ReadingThemes=listOf(
                         onMessage={message->scope.launch {snackbar.showSnackbar(message)}})
                     else if(p.chapters.isNotEmpty()) {
                         val safeChapter=chapter.coerceIn(0,p.chapters.size-1)
-                        TextReader(p,java.io.File(java.io.File(book.source).parentFile,"content"),safeChapter,position,jump,theme,fontSize,scrolling,serif,search,book.notes,
+                        TextReader(p,java.io.File(java.io.File(book.source).parentFile,"content"),safeChapter,position,jump,theme,fontSize,scrolling,options.font!="sans",search,book.notes,
                             onPosition={savePosition(safeChapter,it)},onTap={controls=!controls},onSelection={selection=it},
                             onChapter={next -> if(next in p.chapters.indices) { savePosition(next,if(next<safeChapter) 1f else 0f);jump++ } },
-                            anchor=anchor,fragment=fragment,lineHeight=lineHeight,margin=margin,letterSpacing=letterSpacing,pageTurn=pageTurn,
+                            anchor=anchor,fragment=fragment,lineHeight=effectiveOptions.lineHeight,margin=effectiveOptions.margin,letterSpacing=effectiveOptions.letterSpacing,pageTurn=pageTurn,
+                            fontFamily=options.font,boldText=options.bold,wordSpacing=effectiveOptions.wordSpacing,justify=effectiveOptions.justify,customLayout=options.customLayout,
                             onLocation={progress,at->saveLocated(safeChapter,progress,at)},
                             onSelectionRange={ if(panel!="添加笔记" && panel!="编辑笔记") {selectedRange=it;selection=it.text} },
                             onLink={next,target->savePosition(next,0f);fragment=target;jump++})
@@ -198,6 +190,9 @@ val ReadingThemes=listOf(
         }
     }
     SnackbarHost(snackbar,Modifier.align(Alignment.BottomCenter).navigationBarsPadding()) }
+    if(themeOpen) ThemeSettingsPanel(themeIndex,options,fontSize,scrolling,pageTurn,brightness,appearance,book.format=="PDF",
+        onTheme={themeIndex=it},onOptions={options=it;optionsStore.save(themeIndex,it)},onFontSize={fontSize=it},
+        onStyle={if(it=="scroll") scrolling=true else {scrolling=false;pageTurn=it}},onBrightness={brightness=it},onAppearance={appearance=it},onDismiss={themeOpen=false})
     panel?.let { title ->
         ModalBottomSheet(onDismissRequest={
             if(panel=="添加笔记" || panel=="编辑笔记") {selection="";selectedRange=SelectedText();editingNote=null;noteText=""}
@@ -206,28 +201,6 @@ val ReadingThemes=listOf(
             Column(Modifier.fillMaxWidth().padding(horizontal=24.dp).navigationBarsPadding()) {
                 Text(title,fontSize=23.sp,modifier=Modifier.padding(bottom=20.dp))
                 when(title) {
-                    "主题与设置" -> Column(Modifier.verticalScroll(rememberScrollState())) {
-                        if(book.format!="PDF") {
-                            Row(verticalAlignment=Alignment.CenterVertically) { Text("A",fontSize=15.sp);Slider(fontSize,{fontSize=it},valueRange=14f..34f,modifier=Modifier.weight(1f));Text("A",fontSize=27.sp) }
-                            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) { Text("连续滚动",Modifier.weight(1f)); Switch(scrolling,{scrolling=it},modifier=Modifier.semantics { contentDescription="连续滚动" }) }
-                            Text("翻页样式",Modifier.padding(top=8.dp))
-                            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {listOf("curl" to "卷页","fade" to "快速淡入淡出").forEach {(value,label)->
-                                FilterChip(selected=!scrolling && pageTurn==value,onClick={pageTurn=value;scrolling=false},label={Text(label)})
-                            }}
-                            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) { Text("衬线字体",Modifier.weight(1f)); Switch(serif,{serif=it}) }
-                            Text("行距",Modifier.padding(top=16.dp));Slider(lineHeight,{lineHeight=it},valueRange=1.2f..2.4f,modifier=Modifier.semantics { contentDescription="行距" })
-                            Text("页边距");Slider(margin,{margin=it},valueRange=12f..48f,modifier=Modifier.semantics { contentDescription="页边距" })
-                            Text("字间距");Slider(letterSpacing,{letterSpacing=it},valueRange=0f..0.15f,modifier=Modifier.semantics { contentDescription="字间距" })
-                        }
-                        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) { Text("使用系统亮度",Modifier.weight(1f));Switch(brightness<0,{brightness=if(it) -1f else .6f}) }
-                        if(brightness>=0) Slider(brightness,{brightness=it},valueRange=.05f..1f,modifier=Modifier.semantics { contentDescription="阅读亮度" })
-                        ReadingThemes.chunked(3).forEachIndexed { row, themes -> Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)) { themes.forEachIndexed { col,t ->
-                            Column(Modifier.weight(1f).padding(vertical=5.dp).clip(RoundedCornerShape(12.dp)).background(t.paper).border(if(themeIndex==row*3+col) 2.dp else 1.dp,if(themeIndex==row*3+col) Accent else Color.Gray.copy(alpha=.3f),RoundedCornerShape(12.dp)).clickable { themeIndex=row*3+col }.padding(16.dp),horizontalAlignment=Alignment.CenterHorizontally) {
-                                Text("Aa",fontSize=26.sp,color=t.ink);Text(t.name,fontSize=12.sp,color=t.ink)
-                            }
-                        } } }
-                        Spacer(Modifier.height(24.dp))
-                    }
                     "目录","书签","高亮标记和笔记" -> {
                         Row { listOf("目录","书签","高亮标记和笔记").forEach { TextButton(onClick={panel=it}) { Text(it,fontSize=12.sp) } } }
                         LazyColumn(Modifier.heightIn(max=420.dp)) {

@@ -101,8 +101,9 @@ class ReadingParityTest {
                 device.findObject(By.text("aA")).click()
                 assertNotNull(device.wait(Until.findObject(By.text("主题与设置")),5000))
                 device.takeScreenshot(File(context.getExternalFilesDir(null),"reading-settings.png"))
+                device.wait(Until.findObject(By.desc("翻页样式")),5000)!!.click()
                 device.wait(Until.findObject(By.desc("连续滚动")),5000)!!.click()
-                device.pressBack();Thread.sleep(800)
+                device.wait(Until.findObject(By.desc("关闭主题与设置")),5000)!!.click();Thread.sleep(800)
                 assertTrue("Old TOC fragment overrode latest location",kotlin.math.abs(js(scenario,"window.miuingAnchor()").toInt()-onward)<900)
             }
         } finally { file.delete();id?.let { LibraryStore(context).delete(it) } }

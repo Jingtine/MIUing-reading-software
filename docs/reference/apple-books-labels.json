@@ -17,5 +17,18 @@
   "Calm Theme": "平静主题",
   "Focus Theme": "专注主题",
   "Sort By": "排序方式",
-  "Highlights & Notes": "高亮标记和笔记"
+  "Highlights & Notes": "高亮标记和笔记",
+  "Customize": "自定义",
+  "Customize Theme": "自定义主题",
+  "Reset Theme": "还原主题",
+  "Font": "字体",
+  "Bold Text": "粗体文本",
+  "LINE SPACING": "行间距",
+  "CHARACTER SPACING": "字符间距",
+  "WORD SPACING": "词间距",
+  "Match Device": "匹配设备",
+  "Light": "浅色",
+  "Dark": "深色",
+  "Accessibility & Layout Options": "辅助功能与布局选项",
+  "Discard theme unsaved changes?": "放弃未存储的主题更改？"
 }

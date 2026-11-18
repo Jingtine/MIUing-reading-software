@@ -46,6 +46,7 @@ private fun attachReadingBridge(view:WebView,bridge:ReadingBridge) {
     scrolling:Boolean,serif:Boolean,search:String,notes:List<Note>,onPosition:(Float)->Unit,onTap:()->Unit,
     onSelection:(String)->Unit,onChapter:(Int)->Unit,anchor:Int=-1,fragment:String="",
     lineHeight:Float=1.85f,margin:Float=24f,letterSpacing:Float=0f,pageTurn:String="curl",
+    fontFamily:String=if(serif) "serif" else "sans",boldText:Boolean=theme.name=="粗体",wordSpacing:Float=0f,justify:Boolean=false,customLayout:Boolean=true,
     onLocation:(Float,Int)->Unit={p,_->onPosition(p)},
     onSelectionRange:(SelectedText)->Unit={onSelection(it.text)},onLink:(Int,String)->Unit={i,_->onChapter(i)}
 ) {
@@ -81,9 +82,9 @@ private fun attachReadingBridge(view:WebView,bridge:ReadingBridge) {
         put("position",initial.first);put("anchor",initial.second);put("fragment",initial.third)
         put("paper","#%06x".format(theme.paper.toArgb() and 0xffffff))
         put("ink","#%06x".format(theme.ink.toArgb() and 0xffffff))
-        put("fontSize",fontSize);put("scrolling",scrolling);put("serif",serif);put("bold",theme.name=="粗体")
+        put("fontSize",fontSize);put("scrolling",scrolling);put("serif",serif);put("bold",boldText)
         put("lineHeight",lineHeight);put("margin",margin);put("letterSpacing",letterSpacing)
-        put("pageTurn",pageTurn)
+        put("pageTurn",pageTurn);put("fontFamily",fontFamily);put("wordSpacing",wordSpacing);put("justify",justify);put("customLayout",customLayout)
         put("notes",JSONArray(notes.filter { it.chapter==chapter }.map { JSONObject().put("text",it.text).put("start",it.start).put("end",it.end) }))
     }.toString()
     fun script(view:WebView):String {
