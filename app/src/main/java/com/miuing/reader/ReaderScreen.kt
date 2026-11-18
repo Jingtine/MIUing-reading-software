@@ -89,6 +89,7 @@ val ReadingThemes=listOf(
     var themeIndex by rememberSaveable { mutableIntStateOf(preferences.getInt("theme",0).coerceIn(0,5)) }
     var fontSize by rememberSaveable { mutableFloatStateOf(preferences.getFloat("size",20f)) }
     var scrolling by rememberSaveable { mutableStateOf(preferences.getBoolean("scroll",false)) }
+    var pageTurn by rememberSaveable {mutableStateOf(preferences.getString("pageTurn","curl").let {if(it=="fade") "fade" else "curl"})}
     var serif by rememberSaveable { mutableStateOf(preferences.getBoolean("serif",true)) }
     var lineHeight by rememberSaveable { mutableFloatStateOf(preferences.getFloat("lineHeight",1.85f)) }
     var margin by rememberSaveable { mutableFloatStateOf(preferences.getFloat("margin",24f)) }
@@ -122,6 +123,7 @@ val ReadingThemes=listOf(
         }
     }
     LaunchedEffect(themeIndex,fontSize,scrolling,serif) { preferences.edit().putInt("theme",themeIndex).putFloat("size",fontSize).putBoolean("scroll",scrolling).putBoolean("serif",serif).apply() }
+    LaunchedEffect(pageTurn) {preferences.edit().putString("pageTurn",pageTurn).apply()}
     LaunchedEffect(lineHeight,margin,letterSpacing,brightness) { preferences.edit().putFloat("lineHeight",lineHeight).putFloat("margin",margin).putFloat("letterSpacing",letterSpacing).putFloat("brightness",brightness).apply() }
     fun saveLocated(c:Int,p:Float,a:Int) {
         fragment=""
@@ -165,8 +167,8 @@ val ReadingThemes=listOf(
                         val safeChapter=chapter.coerceIn(0,p.chapters.size-1)
                         TextReader(p,java.io.File(java.io.File(book.source).parentFile,"content"),safeChapter,position,jump,theme,fontSize,scrolling,serif,search,book.notes,
                             onPosition={savePosition(safeChapter,it)},onTap={controls=!controls},onSelection={selection=it},
-                            onChapter={next -> if(next in p.chapters.indices) { savePosition(next,0f);jump++ } },
-                            anchor=anchor,fragment=fragment,lineHeight=lineHeight,margin=margin,letterSpacing=letterSpacing,
+                            onChapter={next -> if(next in p.chapters.indices) { savePosition(next,if(next<safeChapter) 1f else 0f);jump++ } },
+                            anchor=anchor,fragment=fragment,lineHeight=lineHeight,margin=margin,letterSpacing=letterSpacing,pageTurn=pageTurn,
                             onLocation={progress,at->saveLocated(safeChapter,progress,at)},
                             onSelectionRange={ if(panel!="添加笔记" && panel!="编辑笔记") {selectedRange=it;selection=it.text} },
                             onLink={next,target->savePosition(next,0f);fragment=target;jump++})
@@ -208,6 +210,10 @@ val ReadingThemes=listOf(
                         if(book.format!="PDF") {
                             Row(verticalAlignment=Alignment.CenterVertically) { Text("A",fontSize=15.sp);Slider(fontSize,{fontSize=it},valueRange=14f..34f,modifier=Modifier.weight(1f));Text("A",fontSize=27.sp) }
                             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) { Text("连续滚动",Modifier.weight(1f)); Switch(scrolling,{scrolling=it},modifier=Modifier.semantics { contentDescription="连续滚动" }) }
+                            Text("翻页样式",Modifier.padding(top=8.dp))
+                            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {listOf("curl" to "卷页","fade" to "快速淡入淡出").forEach {(value,label)->
+                                FilterChip(selected=!scrolling && pageTurn==value,onClick={pageTurn=value;scrolling=false},label={Text(label)})
+                            }}
                             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) { Text("衬线字体",Modifier.weight(1f)); Switch(serif,{serif=it}) }
                             Text("行距",Modifier.padding(top=16.dp));Slider(lineHeight,{lineHeight=it},valueRange=1.2f..2.4f,modifier=Modifier.semantics { contentDescription="行距" })
                             Text("页边距");Slider(margin,{margin=it},valueRange=12f..48f,modifier=Modifier.semantics { contentDescription="页边距" })

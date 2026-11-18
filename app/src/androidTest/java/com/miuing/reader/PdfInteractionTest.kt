@@ -49,7 +49,12 @@ class PdfInteractionTest {
                 device.wait(Until.findObject(By.clazz("android.widget.EditText")),5000)!!.text="Second"
                 val hit=device.wait(Until.findObject(By.desc("PDF 搜索结果 第 2 页")),10000)
                 assertNotNull("No PDF text search results",hit);hit.click()
-                assertNotNull("Search did not jump to page",device.wait(Until.findObject(By.text("第 2 / 2 页")),5000))
+                val arrived=device.wait(Until.findObject(By.text("第 2 / 2 页")),5000)
+                if(arrived==null) {
+                    device.takeScreenshot(File(context.getExternalFilesDir(null),"pdf-search-failed.png"))
+                    device.dumpWindowHierarchy(File(context.getExternalFilesDir(null),"pdf-search-failed.xml"))
+                }
+                assertNotNull("Search did not jump to page; saved page=${LibraryStore(context).current(book.id).chapter}",arrived)
                 device.findObject(By.desc("目录与书签")).click()
                 device.wait(Until.findObject(By.text("Part One")),5000)!!.click()
                 assertNotNull(device.wait(Until.findObject(By.text("第 1 / 2 页")),5000))

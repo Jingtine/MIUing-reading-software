@@ -43,10 +43,11 @@ class ReadingParityTest {
         val context=instrument.targetContext
         context.getSharedPreferences("reading",0).edit().clear().putBoolean("scroll",true).commit()
         val file=File(context.cacheDir,"parity.epub")
+        val sampleTitle="阅读行为测试-${java.util.UUID.randomUUID().toString().take(8)}"
         ZipOutputStream(file.outputStream()).use { zip->
             mapOf(
                 "META-INF/container.xml" to "<container><rootfiles><rootfile full-path='book.opf'/></rootfiles></container>",
-                "book.opf" to "<package xmlns:dc='http://purl.org/dc/elements/1.1/'><metadata><dc:title>阅读行为测试</dc:title></metadata><manifest><item id='c' href='chapter.xhtml' media-type='application/xhtml+xml'/><item id='nav' href='nav.xhtml' properties='nav' media-type='application/xhtml+xml'/></manifest><spine><itemref idref='c'/></spine></package>",
+                "book.opf" to "<package xmlns:dc='http://purl.org/dc/elements/1.1/'><metadata><dc:title>$sampleTitle</dc:title></metadata><manifest><item id='c' href='chapter.xhtml' media-type='application/xhtml+xml'/><item id='nav' href='nav.xhtml' properties='nav' media-type='application/xhtml+xml'/></manifest><spine><itemref idref='c'/></spine></package>",
                 "nav.xhtml" to "<html xmlns:epub='http://www.idpf.org/2007/ops'><body><nav epub:type='toc'><ol><li><a href='chapter.xhtml#target'>指定段落</a><ol><li><a href='chapter.xhtml#second'>重复文字的第二处</a></li></ol></li></ol></nav></body></html>",
                 "chapter.xhtml" to ("<html><head><title>章节一</title></head><body><style>.unused{color:red}</style><script>window.authorScriptRan=true;</script><h1>正文</h1><p id='first'>重复的文字</p><p>中间内容</p><p id='second'>重复的文字</p><p id='cross-a'>跨段落选择的上半段</p><p id='cross-b'>跨段落选择的下半段</p>"+(0..150).joinToString("") { "<p id='p$it'>第${it}段。这是用于验证阅读位置的独立正文。</p>" }+"<p id='target'>目录要定位的目标段落。</p></body></html>")
             ).forEach { (name,content)->zip.putNextEntry(ZipEntry(name));zip.write(content.toByteArray());zip.closeEntry() }
@@ -56,12 +57,14 @@ class ReadingParityTest {
             val book=LibraryStore(context).import(Uri.fromFile(file));id=book.id
             ActivityScenario.launch(MainActivity::class.java).use { scenario->
                 val device=UiDevice.getInstance(instrument)
-                device.wait(Until.findObject(By.text("阅读行为测试")),15000)!!.click()
+                device.wait(Until.findObject(By.text(sampleTitle)),15000)!!.click()
                 awaitReader(scenario)
                 assertEquals("Text anchors not implemented","\"function\"",js(scenario,"typeof window.miuingAnchor"))
                 js(scenario,"window.miuingJump(0.5)");Thread.sleep(600)
                 val anchor=js(scenario,"window.miuingAnchor()").toInt()
                 assertTrue("No stable text location saved",anchor>100)
+                val saveBy=System.currentTimeMillis()+5000
+                while(LibraryStore(context).current(book.id).anchor<=100 && System.currentTimeMillis()<saveBy) Thread.sleep(50)
                 assertTrue("Anchor not persisted",LibraryStore(context).current(book.id).anchor>100)
                 js(scenario,"window.miuingTestFont=32;window.miuingConfigure({...window.miuingConfig,fontSize:32})")
                 Thread.sleep(500)

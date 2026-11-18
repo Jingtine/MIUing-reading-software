@@ -67,7 +67,7 @@ class ReaderSmokeTest {
                 val limit=System.currentTimeMillis()+15000
                 var rendered=false
                 while(System.currentTimeMillis()<limit) {
-                    try { rendered=evaluate(scenario,"document.body.innerText.includes('离线阅读正文')")=="true" } catch(_:AssertionError) { }
+                    try { rendered=evaluate(scenario,"document.body.innerText.includes('离线阅读正文') && typeof window.miuingJump==='function' && !!window.miuingConfig")=="true" } catch(_:AssertionError) { }
                     if(rendered) break
                     Thread.sleep(150)
                 }

@@ -44,7 +44,14 @@ private val pdfCleanup=CoroutineScope(SupervisorJob()+Dispatchers.IO)
     val transform=rememberTransformableState {scale,offset,_->zoom=(zoom*scale).coerceIn(1f,3f);pan=if(zoom==1f) Offset.Zero else pan+offset}
     val callback by rememberUpdatedState(onPosition)
     LaunchedEffect(jump) {state.scrollToItem(page.coerceIn(0,renderer.pageCount-1));zoom=1f;pan=Offset.Zero}
-    LaunchedEffect(state) {snapshotFlow {state.firstVisibleItemIndex}.collect {callback(it)}}
+    LaunchedEffect(state) {snapshotFlow {
+        val layout=state.layoutInfo
+        // At the document end or while a bitmap replaces its placeholder, a
+        // fragment of the previous page can remain above the page being read.
+        layout.visibleItemsInfo.maxByOrNull {item->
+            min(item.offset+item.size,layout.viewportEndOffset)-max(item.offset,layout.viewportStartOffset)
+        }?.index ?: state.firstVisibleItemIndex
+    }.collect {callback(it)}}
     DisposableEffect(renderer) {onDispose {closed.set(true);pdfCleanup.launch {synchronized(renderer) {renderer.close()}}}}
     LazyColumn(state=state,modifier=Modifier.fillMaxSize().transformable(transform,enabled=!inkMode,canPan={zoom>1f}),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         items(renderer.pageCount) {index->

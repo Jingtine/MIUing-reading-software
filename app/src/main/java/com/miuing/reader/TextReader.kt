@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.os.Handler
 import android.os.Looper
 import android.webkit.*
+import android.widget.FrameLayout
+import android.view.ViewGroup
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -24,10 +26,12 @@ import java.io.File
 private class ReadingBridge(val location:(Float,Int)->Unit,val tap:()->Unit,val selection:(SelectedText)->Unit,val chapter:(Int)->Unit) {
     private val main=Handler(Looper.getMainLooper())
     var active=true
+    var turnPage:(Int)->Unit={}
     @JavascriptInterface fun progress(p:Float,anchor:Int) { main.post { if(active) location(p,anchor) } }
     @JavascriptInterface fun tap() { main.post { if(active) tap.invoke() } }
     @JavascriptInterface fun selection(text:String,start:Int,end:Int) { main.post { if(active) selection(SelectedText(text,start,end)) } }
     @JavascriptInterface fun chapter(direction:Int) { main.post { if(active) chapter.invoke(direction) } }
+    @JavascriptInterface fun turn(direction:Int) { main.post { if(active && direction in listOf(-1,1)) turnPage(direction) } }
 }
 
 // Keep a concrete parameter at the WebView boundary; lint cannot resolve
@@ -41,7 +45,7 @@ private fun attachReadingBridge(view:WebView,bridge:ReadingBridge) {
     publication:Publication,root:File,chapter:Int,position:Float,jump:Int,theme:ReadingTheme,fontSize:Float,
     scrolling:Boolean,serif:Boolean,search:String,notes:List<Note>,onPosition:(Float)->Unit,onTap:()->Unit,
     onSelection:(String)->Unit,onChapter:(Int)->Unit,anchor:Int=-1,fragment:String="",
-    lineHeight:Float=1.85f,margin:Float=24f,letterSpacing:Float=0f,
+    lineHeight:Float=1.85f,margin:Float=24f,letterSpacing:Float=0f,pageTurn:String="curl",
     onLocation:(Float,Int)->Unit={p,_->onPosition(p)},
     onSelectionRange:(SelectedText)->Unit={onSelection(it.text)},onLink:(Int,String)->Unit={i,_->onChapter(i)}
 ) {
@@ -71,6 +75,7 @@ private fun attachReadingBridge(view:WebView,bridge:ReadingBridge) {
     } } }
     val web=webResult.getOrNull()
     if(web==null) {Text("系统网页组件不可用，请启用或更新 Android System WebView。");return}
+    val overlay=remember(web) {PageTurnOverlay(context)}
     val initial=remember(web) { Triple(position,anchor,fragment) }
     val configuration=JSONObject().apply {
         put("position",initial.first);put("anchor",initial.second);put("fragment",initial.third)
@@ -78,6 +83,7 @@ private fun attachReadingBridge(view:WebView,bridge:ReadingBridge) {
         put("ink","#%06x".format(theme.ink.toArgb() and 0xffffff))
         put("fontSize",fontSize);put("scrolling",scrolling);put("serif",serif);put("bold",theme.name=="粗体")
         put("lineHeight",lineHeight);put("margin",margin);put("letterSpacing",letterSpacing)
+        put("pageTurn",pageTurn)
         put("notes",JSONArray(notes.filter { it.chapter==chapter }.map { JSONObject().put("text",it.text).put("start",it.start).put("end",it.end) }))
     }.toString()
     fun script(view:WebView):String {
@@ -87,12 +93,17 @@ private fun attachReadingBridge(view:WebView,bridge:ReadingBridge) {
         return applicationScript+"\nwindow.miuingConfigure($config);"
     }
     var loaded by remember(web) { mutableStateOf(false) }
-    DisposableEffect(web) { onDispose { bridge.active=false;web.stopLoading();web.removeJavascriptInterface("MIUing");web.destroy() } }
-    LaunchedEffect(configuration,loaded) { if(loaded) web.evaluateJavascript(script(web),null) }
+    bridge.turnPage={direction->if(loaded) overlay.turn(web,pageTurn,direction,theme.paper.toArgb()) {ready->web.evaluateJavascript("window.miuingAdvance($direction)") {ready()}}}
+    DisposableEffect(web) { onDispose { bridge.active=false;overlay.clear();web.stopLoading();web.removeJavascriptInterface("MIUing");(web.parent as? ViewGroup)?.removeView(web);web.destroy() } }
+    LaunchedEffect(configuration,loaded) { if(loaded) {overlay.clear();web.evaluateJavascript(script(web),null)} }
     LaunchedEffect(search,loaded) { if(loaded && search.isNotBlank()) web.findAllAsync(search) else web.clearMatches() }
-    key(web) { AndroidView(factory={web},modifier=Modifier.fillMaxSize().onSizeChanged {
-        if(loaded) web.post { if(web.width>0 && web.height>0) web.evaluateJavascript(script(web),null) }
-    },update={ view ->
+    key(web) { AndroidView(factory={FrameLayout(context).apply {
+        addView(web,FrameLayout.LayoutParams(-1,-1));addView(overlay,FrameLayout.LayoutParams(-1,-1))
+    }},modifier=Modifier.fillMaxSize().onSizeChanged {
+        overlay.clear()
+        if(loaded) web.post { if(bridge.active && web.width>0 && web.height>0) web.evaluateJavascript(script(web),null) }
+    },update={ _ ->
+        val view=web
         view.setBackgroundColor(theme.paper.toArgb())
         if(html!=null && view.tag!=path.path) {
             view.tag=path.path

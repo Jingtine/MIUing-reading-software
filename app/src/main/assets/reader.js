@@ -1,7 +1,7 @@
 /* Application-owned renderer. Book-authored scripts remain blocked by CSP. */
 (() => {
   if (window.miuingConfigure) return;
-  let config, shell, flow, restoring = false, timer, selectionTimer, sx = 0, sy = 0;
+  let config, shell, flow, restoring = false, timer, selectionTimer, sx = 0, sy = 0, suppressClickUntil = 0, touchAt = 0, selectedAtTouch = false;
   function textNodes() {
     const walker = document.createTreeWalker(flow, NodeFilter.SHOW_TEXT);
     const result = []; let node, offset = 0;
@@ -94,7 +94,7 @@
     style.textContent = `
       html,body{margin:0!important;padding:0!important;width:${w}px!important;height:${h}px!important;overflow:hidden!important;background:${next.paper}!important;color:${next.ink}!important}
       body{font-size:${next.fontSize}px!important;line-height:${next.lineHeight}!important;letter-spacing:${next.letterSpacing}em!important;font-family:${next.serif?'serif':'sans-serif'}!important;font-weight:${next.bold?700:400}!important;overflow-wrap:break-word}
-      #miuing-scroll{width:${w}px;height:${h}px;overflow-x:${next.scrolling?'hidden':'auto'};overflow-y:${next.scrolling?'auto':'hidden'};scrollbar-width:none}
+      #miuing-scroll{width:${w}px;height:${h}px;overflow-x:hidden;overflow-y:${next.scrolling?'auto':'hidden'};scrollbar-width:none}
       #miuing-content{box-sizing:content-box;width:${available}px;margin:${m}px;${next.scrolling?`max-width:760px;margin:${m}px auto;padding:0 ${m}px;`:`height:${h-2*m}px;column-width:${column}px;column-gap:${2*m}px;column-fill:auto;`}}
       p{font-size:inherit!important;line-height:inherit!important;color:inherit!important}img,svg{max-width:100%!important;max-height:${h-2*m}px!important;object-fit:contain}mark[data-miuing]{background:#e8ce6c;color:inherit}
     `;
@@ -117,19 +117,32 @@
     if (!flow || !flow.contains(range.startContainer) || !flow.contains(range.endContainer)) return;
     MIUing.selection(selection.toString(), offsetOf(range.startContainer, range.startOffset), offsetOf(range.endContainer, range.endOffset));
   });
-  function turn(direction) {
-    if (direction > 0 && window.miuingProgress() >= .995) MIUing.chapter(1);
-    else if (direction < 0 && window.miuingProgress() <= .005) MIUing.chapter(-1);
-    else shell.scrollBy(direction * config.width, 0);
-  }
-  document.addEventListener('touchstart', e => { sx = e.changedTouches[0].clientX; sy = e.changedTouches[0].clientY; }, { passive:true });
-  document.addEventListener('touchend', e => {
+  window.miuingAdvance = direction => {
     if (!config || config.scrolling || getSelection().toString()) return;
+    const remaining = extent() - shell.scrollLeft;
+    if (direction > 0 && remaining <= config.width + 1) shell.scrollLeft = extent();
+    else if (direction < 0 && shell.scrollLeft <= config.width + 1) shell.scrollLeft = 0;
+    else shell.scrollLeft = Math.max(0, Math.min(extent(), (Math.round(shell.scrollLeft / config.width) + direction) * config.width));
+    publish();
+  };
+  function turn(direction) {
+    if (direction > 0 && extent() - shell.scrollLeft <= 1) MIUing.chapter(1);
+    else if (direction < 0 && shell.scrollLeft <= 1) MIUing.chapter(-1);
+    else if (typeof MIUing.turn === 'function') MIUing.turn(direction);
+    else window.miuingAdvance(direction);
+  }
+  document.addEventListener('touchstart', e => {
+    sx = e.changedTouches[0].clientX; sy = e.changedTouches[0].clientY; touchAt=Date.now();
+    selectedAtTouch=!!getSelection().toString();
+  }, { passive:true });
+  document.addEventListener('touchend', e => {
+    if (!config || config.scrolling || e.target.closest('a')) return;
+    if (selectedAtTouch || getSelection().toString() || Date.now()-touchAt>600) {suppressClickUntil=Date.now()+400;return;}
     const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
-    if (Math.abs(dx)>55 && Math.abs(dx)>Math.abs(dy)) { turn(dx<0?1:-1); e.preventDefault(); }
+    if (Math.abs(dx)>55 && Math.abs(dx)>Math.abs(dy)) { suppressClickUntil=Date.now()+400;turn(dx<0?1:-1); e.preventDefault(); }
   }, { passive:false });
   document.addEventListener('click', e => {
-    if (!config || e.target.closest('a') || getSelection().toString()) return;
+    if (!config || Date.now()<suppressClickUntil || e.target.closest('a') || getSelection().toString()) return;
     if (!config.scrolling && e.clientX<config.width*.22) turn(-1);
     else if (!config.scrolling && e.clientX>config.width*.78) turn(1);
     else MIUing.tap();
