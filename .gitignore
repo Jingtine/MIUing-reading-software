@@ -1,0 +1,9 @@
+/.tools/
+/.gradle/
+/.kotlin/
+/local.properties
+**/build/
+/.idea/
+*.iml
+/Books.app/
+/.superpowers/

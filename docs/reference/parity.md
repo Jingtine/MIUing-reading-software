@@ -1,0 +1,37 @@
+# Apple Books 对照进度
+
+基准：用户提供的 macOS Apple Books 7.6（6387）资源，以及 Apple 官方对应平台界面说明。
+
+本地是 Windows；尚未在 macOS 或 iPad 上运行原版逐页截图比较。下述“已实现”指 MIUing 可用功能，不代表已完成像素级或全部行为等价。
+
+| 范围 | 当前状态 |
+| --- | --- |
+| MIUing 名称、用户猫咪图标、自适应 Android 启动图标 | 已接入 |
+| 主页、继续阅读、书库网格/列表、搜索及排序 | 已实现，布局仍需对原版逐页校准 |
+| 欲读清单、已读完、自定义藏书、书籍菜单 | 已实现 |
+| EPUB/PDF/TXT 本地导入、私有副本、去重 | 已实现 |
+| EPUB/TXT 翻页与滚动、书签、进度、字号/字体/主题 | 已实现基础行为 |
+| 六种主题 | 原版名称已核对，精细排版参数尚未完全对齐 |
+| 高亮与笔记 | 已实现基本操作和跨行内元素高亮；跨段落换行和相同文本的精确锚定仍需完善 |
+| 正文搜索 | EPUB/TXT 已实现按章节检索；PDF 尚无正文搜索 |
+| EPUB 目录 | 当前采用 spine 章节和章节标题，尚未完整复现嵌套 NCX/nav 目录 |
+| PDF | 页面渲染、跳页、缩放与平移；尚无文本选择、批注及 PDF 内嵌目录 |
+| 手机/平板布局 | 使用实际窗口宽度适配；平板宽窗口支持双栏分页；模拟器测试与截图见 previews |
+| 仿真翻页、精细主题排版、自定义字体 | 待对照实现；不将其作为永久删减项 |
+| MOBI、AZW3 | 按约定放到后续格式兼容阶段 |
+| Apple 账户、书城、iCloud | 不在已确认的本地离线范围内 |
+
+## 当前边界
+
+- 可重排版、无 DRM 的常规 EPUB 为主要兼容目标；不执行书内脚本，不加载外部网络资源。
+- EPUB 解压限制：单文件 16 MB、总计 256 MB、最多 10000 个条目；TXT 最大 32 MB，按段分章。
+- 阅读位置当前按章节和相对进度保存；改变排版后不是精确内容锚点，后续需对齐原版位置恢复。
+- 测试设备为 Android 15/API35 模拟器；最低声明支持 API26，尚未在 API26 或实体设备验证。
+- 开发包无发布签名，尚未发布到应用商店。
+
+## 来源
+
+- 本地 `Books.app/Contents/Info.plist` 与 `Resources/Localizable.loctable`，提取的小范围页面名称见 apple-books-labels.json。
+- [Apple Books Mac 阅读说明](https://support.apple.com/en-sa/guide/books/ibks5f526382/mac)。
+- [iPad 阅读说明](https://support.apple.com/zh-cn/guide/ipad/ipadc8494b6b/ipados)。
+- [iPadOS 18 标签栏和边栏设计](https://www.apple.com.cn/newsroom/2024/09/ipados-18-is-now-available-taking-ipad-to-the-next-level/)。
