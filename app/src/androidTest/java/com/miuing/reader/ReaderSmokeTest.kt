@@ -74,7 +74,7 @@ class ReaderSmokeTest {
                 assertTrue("EPUB正文未渲染",rendered)
                 assertEquals("Book-authored scripts executed","false",evaluate(scenario,"window.bookScriptRan===true"))
                 assertEquals("Reader script did not initialize","\"function\"",evaluate(scenario,"typeof window.miuingJump"))
-                assertEquals("Cross-element highlight missing","true",evaluate(scenario,"Array.from(document.querySelectorAll('mark')).some(m=>m.textContent==='跨元素选择高亮')"))
+                assertEquals("Cross-element highlight missing","true",evaluate(scenario,"Array.from(document.querySelectorAll('mark')).map(m=>m.textContent).join('').includes('跨元素选择高亮')"))
                 assertEquals("Nested content directory broke image loading","true",evaluate(scenario,"document.images[0].naturalWidth>0"))
                 Thread.sleep(800)
                 assertEquals("First paragraph is outside the visible reading page","true",evaluate(scenario,"(()=>{const r=document.querySelector('p').getBoundingClientRect();return r.x>=0&&r.x<screen.width&&r.height>10&&r.height<200})()"))

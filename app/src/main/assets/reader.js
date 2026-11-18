@@ -1,0 +1,137 @@
+/* Application-owned renderer. Book-authored scripts remain blocked by CSP. */
+(() => {
+  if (window.miuingConfigure) return;
+  let config, shell, flow, restoring = false, timer, selectionTimer, sx = 0, sy = 0;
+  function textNodes() {
+    const walker = document.createTreeWalker(flow, NodeFilter.SHOW_TEXT);
+    const result = []; let node, offset = 0;
+    while ((node = walker.nextNode())) {
+      if (node.parentElement.closest('script,style,noscript')) continue;
+      result.push({ node, offset }); offset += node.length;
+    }
+    return result;
+  }
+  function offsetOf(node, offset) {
+    const entry = textNodes().find(e => e.node === node);
+    if (entry) return entry.offset + offset;
+    // Range endpoints can be elements rather than text nodes.
+    const prefix = document.createRange(); prefix.selectNodeContents(flow);
+    try {
+      prefix.setEnd(node, offset);
+      const content=prefix.cloneContents();
+      content.querySelectorAll('script,style,noscript').forEach(e=>e.remove());
+      return content.textContent.length;
+    }
+    catch (_) { return -1; }
+  }
+  function rangeAt(offset) {
+    const nodes=textNodes();
+    for (const e of nodes) if (offset < e.offset + e.node.length || (e===nodes[nodes.length-1] && offset===e.offset+e.node.length)) {
+      const range = document.createRange();
+      range.setStart(e.node, Math.max(0, offset - e.offset)); range.collapse(true); return range;
+    }
+    return null;
+  }
+  window.miuingAnchor = () => {
+    if (!shell) return -1;
+    const box = shell.getBoundingClientRect(), step = Math.max(12, config.fontSize);
+    for (let y = config.margin + 4; y < config.height - config.margin; y += step) {
+      const caret = document.caretRangeFromPoint(box.left + config.margin + 3, box.top + y);
+      if (caret && flow.contains(caret.startContainer) && caret.startContainer.nodeType === Node.TEXT_NODE)
+        return offsetOf(caret.startContainer, caret.startOffset);
+    }
+    return -1;
+  };
+  function extent() {
+    return Math.max(0, config.scrolling ? shell.scrollHeight - shell.clientHeight : shell.scrollWidth - shell.clientWidth);
+  }
+  window.miuingProgress = () => extent() ? (config.scrolling ? shell.scrollTop : shell.scrollLeft) / extent() : 0;
+  window.miuingJump = fraction => shell.scrollTo(config.scrolling ? 0 : fraction * extent(), config.scrolling ? fraction * extent() : 0);
+  function locateRect(rect) {
+    const box = shell.getBoundingClientRect();
+    if (config.scrolling) shell.scrollTop += rect.top - box.top - config.margin;
+    else shell.scrollLeft = Math.max(0, Math.floor((rect.left - box.left + shell.scrollLeft - config.margin + 1) / config.width) * config.width);
+  }
+  window.miuingJumpAnchor = offset => { const range = rangeAt(offset); if (range) locateRect(range.getBoundingClientRect()); };
+  function publish() {
+    if (!restoring) MIUing.progress(window.miuingProgress(), window.miuingAnchor());
+  }
+  function highlights(notes) {
+    flow.querySelectorAll('mark[data-miuing]').forEach(mark => mark.replaceWith(...mark.childNodes));
+    flow.normalize();
+    for (const note of notes) {
+      let start = note.start, end = note.end;
+      const nodes = textNodes();
+      if (!(start >= 0 && end > start)) {
+        const text = nodes.map(e => e.node.data).join(''); start = text.indexOf(note.text); end = start + note.text.length;
+      }
+      if (start < 0 || end <= start) continue;
+      // Mark text-node slices separately: never move paragraphs inside an inline mark.
+      for (const e of nodes) {
+        const a = Math.max(0, start - e.offset), b = Math.min(e.node.length, end - e.offset);
+        if (a >= b) continue;
+        const range = document.createRange(); range.setStart(e.node, a); range.setEnd(e.node, b);
+        const mark = document.createElement('mark'); mark.dataset.miuing = '1'; range.surroundContents(mark);
+      }
+    }
+  }
+  window.miuingConfigure = next => {
+    if (config && JSON.stringify(config) === JSON.stringify(next)) return;
+    const previous = config ? { anchor: window.miuingAnchor(), position: window.miuingProgress() } : null;
+    config = next; window.miuingConfig = next;
+    window.miuingWidth = next.width; window.miuingHeight = next.height;
+    restoring = true;
+    if (!flow) {
+      flow = document.createElement('main'); flow.id = 'miuing-content';
+      while (document.body.firstChild) flow.appendChild(document.body.firstChild);
+      shell = document.createElement('div'); shell.id = 'miuing-scroll'; shell.appendChild(flow); document.body.appendChild(shell);
+      shell.addEventListener('scroll', () => { clearTimeout(timer); timer = setTimeout(publish, 180); });
+    }
+    let style = document.getElementById('miuing-style');
+    if (!style) { style = document.createElement('style'); style.id = 'miuing-style'; document.head.appendChild(style); }
+    const w = next.width, h = next.height, m = next.margin, available = w - 2 * m;
+    const column = w >= 900 ? (w - 4 * m) / 2 : available;
+    style.textContent = `
+      html,body{margin:0!important;padding:0!important;width:${w}px!important;height:${h}px!important;overflow:hidden!important;background:${next.paper}!important;color:${next.ink}!important}
+      body{font-size:${next.fontSize}px!important;line-height:${next.lineHeight}!important;letter-spacing:${next.letterSpacing}em!important;font-family:${next.serif?'serif':'sans-serif'}!important;font-weight:${next.bold?700:400}!important;overflow-wrap:break-word}
+      #miuing-scroll{width:${w}px;height:${h}px;overflow-x:${next.scrolling?'hidden':'auto'};overflow-y:${next.scrolling?'auto':'hidden'};scrollbar-width:none}
+      #miuing-content{box-sizing:content-box;width:${available}px;margin:${m}px;${next.scrolling?`max-width:760px;margin:${m}px auto;padding:0 ${m}px;`:`height:${h-2*m}px;column-width:${column}px;column-gap:${2*m}px;column-fill:auto;`}}
+      p{font-size:inherit!important;line-height:inherit!important;color:inherit!important}img,svg{max-width:100%!important;max-height:${h-2*m}px!important;object-fit:contain}mark[data-miuing]{background:#e8ce6c;color:inherit}
+    `;
+    highlights(next.notes || []);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (previous && previous.anchor >= 0) window.miuingJumpAnchor(previous.anchor);
+      else if (!previous && next.fragment && document.getElementById(next.fragment)) locateRect(document.getElementById(next.fragment).getBoundingClientRect());
+      else if (!previous && next.anchor >= 0) window.miuingJumpAnchor(next.anchor);
+      else window.miuingJump(previous ? previous.position : next.position);
+      restoring = false; publish();
+    }));
+  };
+  document.addEventListener('selectionchange', () => {
+    clearTimeout(selectionTimer);
+    const selection = getSelection();
+    if (!selection.rangeCount || selection.isCollapsed) {
+      selectionTimer=setTimeout(()=>MIUing.selection('',-1,-1),200);return;
+    }
+    const range = selection.getRangeAt(0);
+    if (!flow || !flow.contains(range.startContainer) || !flow.contains(range.endContainer)) return;
+    MIUing.selection(selection.toString(), offsetOf(range.startContainer, range.startOffset), offsetOf(range.endContainer, range.endOffset));
+  });
+  function turn(direction) {
+    if (direction > 0 && window.miuingProgress() >= .995) MIUing.chapter(1);
+    else if (direction < 0 && window.miuingProgress() <= .005) MIUing.chapter(-1);
+    else shell.scrollBy(direction * config.width, 0);
+  }
+  document.addEventListener('touchstart', e => { sx = e.changedTouches[0].clientX; sy = e.changedTouches[0].clientY; }, { passive:true });
+  document.addEventListener('touchend', e => {
+    if (!config || config.scrolling || getSelection().toString()) return;
+    const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+    if (Math.abs(dx)>55 && Math.abs(dx)>Math.abs(dy)) { turn(dx<0?1:-1); e.preventDefault(); }
+  }, { passive:false });
+  document.addEventListener('click', e => {
+    if (!config || e.target.closest('a') || getSelection().toString()) return;
+    if (!config.scrolling && e.clientX<config.width*.22) turn(-1);
+    else if (!config.scrolling && e.clientX>config.width*.78) turn(1);
+    else MIUing.tap();
+  });
+})();

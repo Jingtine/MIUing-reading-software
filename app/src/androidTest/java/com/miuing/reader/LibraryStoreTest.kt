@@ -11,6 +11,21 @@ import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class LibraryStoreTest {
+    @Test fun legacyReadingRecordsLoadAndNewTextAnchorsPersist() {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val root=File(context.cacheDir,"legacy-${System.nanoTime()}").apply {mkdirs()}
+        try {
+            File(root,"index.json").writeText("""{"books":[{"id":"legacy","title":"旧书","author":"旧作者","format":"EPUB","source":"unused","added":1,"marks":[{"chapter":0,"position":0.3,"label":"旧书签"}],"notes":[{"chapter":0,"text":"旧高亮"}]}],"collections":[]}""")
+            val store=LibraryStore(context,root)
+            val book=store.books.single()
+            assertEquals(-1,book.anchor);assertEquals(-1,book.marks.single().anchor)
+            assertEquals("旧高亮",book.notes.single().text)
+            store.update(book.copy(anchor=123,notes=book.notes+Note(0,"新高亮","笔记",10,13)))
+            val restored=LibraryStore(context,root).books.single()
+            assertEquals(123,restored.anchor)
+            assertEquals(10,restored.notes.last().start);assertEquals(13,restored.notes.last().end)
+        } finally {root.deleteRecursively()}
+    }
     @Test fun largeCoverIsDecodedAtThumbnailSize() {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         val file=File(context.cacheDir,"large-cover.png")

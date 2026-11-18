@@ -16,14 +16,16 @@ import java.io.File
 import java.security.MessageDigest
 import java.util.UUID
 
-data class Mark(val chapter: Int, val position: Float, val label: String)
-data class Note(val chapter: Int, val text: String, val note: String = "")
+data class Mark(val chapter: Int, val position: Float, val label: String, val anchor:Int = -1)
+data class Note(val chapter: Int, val text: String, val note: String = "", val start:Int = -1,val end:Int = -1)
+data class SelectedText(val text:String="",val start:Int=-1,val end:Int=-1)
 data class Book(
     val id: String, val title: String, val author: String, val format: String,
     val source: String, val cover: String = "", val added: Long = System.currentTimeMillis(),
     val opened: Long = 0, val chapter: Int = 0, val position: Float = 0f,
     val finished: Boolean = false, val wantToRead: Boolean = false,
-    val collections: List<String> = emptyList(), val marks: List<Mark> = emptyList(), val notes: List<Note> = emptyList()
+    val collections: List<String> = emptyList(), val marks: List<Mark> = emptyList(), val notes: List<Note> = emptyList(),
+    val anchor:Int = -1
 )
 
 class LibraryStore(private val context: Context, private val root: File = File(context.filesDir, "library")) {
@@ -122,15 +124,15 @@ class LibraryStore(private val context: Context, private val root: File = File(c
     private fun encode(b: Book) = JSONObject().apply {
         put("id",b.id); put("title",b.title); put("author",b.author); put("format",b.format)
         put("source",b.source); put("cover",b.cover); put("added",b.added); put("opened",b.opened)
-        put("chapter",b.chapter); put("position",b.position); put("finished",b.finished); put("want",b.wantToRead)
+        put("chapter",b.chapter); put("position",b.position); put("anchor",b.anchor); put("finished",b.finished); put("want",b.wantToRead)
         put("collections",JSONArray(b.collections))
-        put("marks",JSONArray(b.marks.map { JSONObject().put("chapter",it.chapter).put("position",it.position).put("label",it.label) }))
-        put("notes",JSONArray(b.notes.map { JSONObject().put("chapter",it.chapter).put("text",it.text).put("note",it.note) }))
+        put("marks",JSONArray(b.marks.map { JSONObject().put("chapter",it.chapter).put("position",it.position).put("label",it.label).put("anchor",it.anchor) }))
+        put("notes",JSONArray(b.notes.map { JSONObject().put("chapter",it.chapter).put("text",it.text).put("note",it.note).put("start",it.start).put("end",it.end) }))
     }
     private fun decode(o: JSONObject): Book {
         fun strings(key: String): List<String> = o.optJSONArray(key)?.let { a -> List(a.length()) { a.getString(it) } } ?: emptyList()
-        val marks = o.optJSONArray("marks")?.let { a -> List(a.length()) { i -> a.getJSONObject(i).let { Mark(it.getInt("chapter"),it.getDouble("position").toFloat(),it.getString("label")) } } } ?: emptyList()
-        val notes = o.optJSONArray("notes")?.let { a -> List(a.length()) { i -> a.getJSONObject(i).let { Note(it.getInt("chapter"),it.getString("text"),it.optString("note")) } } } ?: emptyList()
-        return Book(o.getString("id"),o.getString("title"),o.getString("author"),o.getString("format"),o.getString("source"),o.optString("cover"),o.getLong("added"),o.optLong("opened"),o.optInt("chapter"),o.optDouble("position",0.0).toFloat(),o.optBoolean("finished"),o.optBoolean("want"),strings("collections"),marks,notes)
+        val marks = o.optJSONArray("marks")?.let { a -> List(a.length()) { i -> a.getJSONObject(i).let { Mark(it.getInt("chapter"),it.getDouble("position").toFloat(),it.getString("label"),it.optInt("anchor",-1)) } } } ?: emptyList()
+        val notes = o.optJSONArray("notes")?.let { a -> List(a.length()) { i -> a.getJSONObject(i).let { Note(it.getInt("chapter"),it.getString("text"),it.optString("note"),it.optInt("start",-1),it.optInt("end",-1)) } } } ?: emptyList()
+        return Book(o.getString("id"),o.getString("title"),o.getString("author"),o.getString("format"),o.getString("source"),o.optString("cover"),o.getLong("added"),o.optLong("opened"),o.optInt("chapter"),o.optDouble("position",0.0).toFloat(),o.optBoolean("finished"),o.optBoolean("want"),strings("collections"),marks,notes,o.optInt("anchor",-1))
     }
 }

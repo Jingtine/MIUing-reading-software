@@ -57,7 +57,7 @@ public final class PublicationParser {
         Path opf=contained(root,((Element)roots.item(0)).getAttribute("full-path"));
         Document doc=xml(opf);
         title=value(doc,"title",title); String author=value(doc,"creator","未知作者");
-        Map<String,Path> items=new HashMap<>(); Path cover=null;
+        Map<String,Path> items=new HashMap<>(); Path cover=null,nav=null,ncx=null;
         String coverId="";
         NodeList metas=doc.getElementsByTagNameNS("*","meta");
         for(int i=0;i<metas.getLength();i++) {
@@ -70,6 +70,8 @@ public final class PublicationParser {
             String href=item.getAttribute("href");
             Path path=relativeResource(root,opf.getParent(),href);
             items.put(item.getAttribute("id"),path);
+            if(Arrays.asList(item.getAttribute("properties").split("\\s+")).contains("nav")) nav=path;
+            if(item.getAttribute("media-type").equals("application/x-dtbncx+xml")) ncx=path;
             if(item.getAttribute("properties").contains("cover-image") || item.getAttribute("id").equals(coverId)) cover=path;
         }
         List<Publication.Chapter> chapters=new ArrayList<>();
@@ -85,7 +87,13 @@ public final class PublicationParser {
             chapters.add(new Publication.Chapter(chapter,path));
         }
         if(chapters.isEmpty()) throw new IOException("EPUB 没有可阅读章节");
-        return new Publication(title,author,"EPUB",chapters,cover);
+        NodeList spineElements=doc.getElementsByTagNameNS("*","spine");
+        if(spineElements.getLength()>0) {
+            Path specified=items.get(((Element)spineElements.item(0)).getAttribute("toc"));
+            if(specified!=null) ncx=specified;
+        }
+        List<Publication.Navigation> navigation=EpubNavigation.read(root,nav,ncx,chapters);
+        return navigation.isEmpty()?new Publication(title,author,"EPUB",chapters,cover):new Publication(title,author,"EPUB",chapters,cover,navigation);
     }
     private static Path contained(Path root,String name) throws IOException {
         if(name.contains("\\") || name.contains(":")) throw new IOException("无效的 EPUB 路径");
@@ -93,7 +101,7 @@ public final class PublicationParser {
         if(!p.startsWith(root) || p.equals(root)) throw new IOException("EPUB 路径越界");
         return p;
     }
-    private static Path relativeResource(Path root,Path parent,String href) throws IOException {
+    static Path relativeResource(Path root,Path parent,String href) throws IOException {
         try {
             java.net.URI uri=new java.net.URI(href);
             if(uri.isAbsolute() || uri.getRawAuthority()!=null) throw new IOException("EPUB 资源必须在书内");
@@ -101,20 +109,21 @@ public final class PublicationParser {
             return contained(root,root.relativize(path).toString().replace('\\','/'));
         } catch(java.net.URISyntaxException | IllegalArgumentException e) { throw new IOException("无效的 EPUB 资源路径",e); }
     }
-    private static Document xml(Path path) throws IOException {
+    static Document xml(Path path) throws IOException {
         try {
             if(Files.size(path)>ENTRY_LIMIT) throw new IOException("XML 文件过大");
-            byte[] bytes=Files.readAllBytes(path);
+            String markup=readMarkup(path);
             // Android's XML factory does not support Xerces' disallow-doctype feature.
             // Reject DTD declarations before parsing, including UTF-16/32 ASCII encodings.
-            String declarations=new String(bytes,StandardCharsets.ISO_8859_1).replace("\u0000", "");
-            if(declarations.contains("<!DOCTYPE") || declarations.contains("<!ENTITY")) throw new IOException("不支持 XML 外部实体与 DTD");
+            if(markup.contains("<!ENTITY") || java.util.regex.Pattern.compile("(?s)<!DOCTYPE[^>]*\\[").matcher(markup).find()) throw new IOException("不支持 XML 外部实体与内部 DTD");
+            // NCX commonly declares an external DTD. Strip the declaration without fetching it.
+            markup=markup.replaceAll("(?s)<!DOCTYPE[^>]*>","");
             DocumentBuilderFactory f=DocumentBuilderFactory.newInstance();
             f.setNamespaceAware(true);
             DocumentBuilder builder=f.newDocumentBuilder();
             builder.setEntityResolver((publicId,systemId) -> { throw new org.xml.sax.SAXException("External entities are disabled"); });
             builder.setErrorHandler(new org.xml.sax.helpers.DefaultHandler());
-            return builder.parse(new ByteArrayInputStream(bytes));
+            return builder.parse(new org.xml.sax.InputSource(new StringReader(markup)));
         } catch(Exception e) { throw new IOException("无法解析 EPUB 内容清单",e); }
     }
     private static String value(Document doc,String tag,String fallback) {
