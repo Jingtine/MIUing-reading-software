@@ -62,13 +62,15 @@ private fun attachReadingBridge(view:WebView,bridge:ReadingBridge) {
     if(readError!=null) { Text("无法读取此章节：$readError");return }
     val loader=remember(root) { WebViewAssetLoader.Builder().addPathHandler("/book/",WebViewAssetLoader.InternalStoragePathHandler(context,root)).build() }
     val bridge:ReadingBridge=remember(path,jump,scrolling) { ReadingBridge({p,a->latestLocation(p,a)},{latestTap()},{latestSelection(it)},{latestChapter(chapter+it)}) }
-    val web=remember(path,jump,scrolling) { WebView(context).apply {
+    val webResult=remember(path,jump,scrolling) { runCatching { WebView(context).apply {
         settings.javaScriptEnabled=true;settings.allowFileAccess=false;settings.allowContentAccess=false
         settings.blockNetworkLoads=true;settings.domStorageEnabled=false
         settings.useWideViewPort=true;settings.loadWithOverviewMode=false
         isVerticalScrollBarEnabled=false;isHorizontalScrollBarEnabled=false
         attachReadingBridge(this,bridge)
-    } }
+    } } }
+    val web=webResult.getOrNull()
+    if(web==null) {Text("系统网页组件不可用，请启用或更新 Android System WebView。");return}
     val initial=remember(web) { Triple(position,anchor,fragment) }
     val configuration=JSONObject().apply {
         put("position",initial.first);put("anchor",initial.second);put("fragment",initial.third)

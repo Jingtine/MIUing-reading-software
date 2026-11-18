@@ -30,6 +30,15 @@ class ReadingParityTest {
         s.onActivity { find(it.window.decorView)!!.evaluateJavascript(code) { value->result=value;done.countDown() } }
         check(done.await(10,TimeUnit.SECONDS));return result
     }
+    private fun awaitReader(scenario:ActivityScenario<MainActivity>) {
+        val deadline=System.currentTimeMillis()+15000
+        while(System.currentTimeMillis()<deadline) {
+            val ready=try {js(scenario,"typeof window.miuingAnchor==='function' && !!window.miuingConfig")=="true"} catch(_:Exception) {false}
+            if(ready) {Thread.sleep(200);return}
+            Thread.sleep(100)
+        }
+        fail("Reader engine did not initialize within 15 seconds")
+    }
     @Test fun navigationAnchorsAndExactHighlightsSurviveLayoutChanges()=runBlocking {
         val context=instrument.targetContext
         context.getSharedPreferences("reading",0).edit().clear().putBoolean("scroll",true).commit()
@@ -48,7 +57,7 @@ class ReadingParityTest {
             ActivityScenario.launch(MainActivity::class.java).use { scenario->
                 val device=UiDevice.getInstance(instrument)
                 device.wait(Until.findObject(By.text("阅读行为测试")),15000)!!.click()
-                Thread.sleep(1200)
+                awaitReader(scenario)
                 assertEquals("Text anchors not implemented","\"function\"",js(scenario,"typeof window.miuingAnchor"))
                 js(scenario,"window.miuingJump(0.5)");Thread.sleep(600)
                 val anchor=js(scenario,"window.miuingAnchor()").toInt()
@@ -57,7 +66,7 @@ class ReadingParityTest {
                 js(scenario,"window.miuingTestFont=32;window.miuingConfigure({...window.miuingConfig,fontSize:32})")
                 Thread.sleep(500)
                 assertTrue("Font change lost the passage",kotlin.math.abs(js(scenario,"window.miuingAnchor()").toInt()-anchor)<100)
-                scenario.recreate();Thread.sleep(1500)
+                scenario.recreate();awaitReader(scenario)
                 assertTrue("Recreation lost the anchored passage",kotlin.math.abs(js(scenario,"window.miuingAnchor()").toInt()-anchor)<100)
                 val paragraph75=("正文重复的文字中间内容重复的文字跨段落选择的上半段跨段落选择的下半段"+(0 until 75).joinToString("") { "第${it}段。这是用于验证阅读位置的独立正文。" }).length
                 js(scenario,"window.miuingJumpAnchor($paragraph75)");Thread.sleep(300)
@@ -72,7 +81,7 @@ class ReadingParityTest {
                 js(scenario,"(()=>{const a=document.getElementById('cross-a').firstChild,b=document.getElementById('cross-b').firstChild,r=document.createRange();r.setStart(a,0);r.setEnd(b,b.length);getSelection().removeAllRanges();getSelection().addRange(r)})()")
                 device.wait(Until.findObject(By.text("高亮标记")),5000)!!.click();Thread.sleep(500)
                 assertEquals("Cross-paragraph highlight not restored","true",js(scenario,"!!document.querySelector('#cross-a mark')&&!!document.querySelector('#cross-b mark')"))
-                scenario.recreate();Thread.sleep(1500)
+                scenario.recreate();awaitReader(scenario)
                 assertEquals("Exact highlights lost on reopening","true",js(scenario,"!!document.querySelector('#second mark')&&!document.querySelector('#first mark')&&!!document.querySelector('#cross-a mark')&&!!document.querySelector('#cross-b mark')"))
                 device.findObject(By.desc("目录与书签")).click()
                 device.wait(Until.findObject(By.text("高亮标记和笔记")),5000)!!.click()
