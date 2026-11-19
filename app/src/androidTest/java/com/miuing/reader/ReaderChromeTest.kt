@@ -235,7 +235,9 @@ class ReaderChromeTest {
         text("书签").click()
         text(saved.label).click()
         await(scenario, "window.miuingProgress()>.3")
-        assertTrue("Bookmark did not return to the selected passage", kotlin.math.abs(js(scenario, "window.miuingAnchor()").toInt() - saved.anchor) <= 5)
+        screenshot(scenario, "bookmark-restored.png")
+        val restored = js(scenario, "window.miuingAnchor()").toInt()
+        assertTrue("Bookmark did not return to the selected passage: saved=${saved.anchor}, restored=$restored", kotlin.math.abs(restored - saved.anchor) <= 5)
     }
 
     @Test fun nativePageStatusTracksEndpointsAndFontReflow() = reader { scenario, _, _ ->
@@ -253,5 +255,21 @@ class ReaderChromeTest {
         action("本章第 ${larger.second} 页，共 ${larger.second} 页")
         js(scenario, "window.miuingJump(0)")
         action("本章第 1 页，共 ${larger.second} 页")
+    }
+
+    @Test fun systemBackDismissesToolsBeforeLeavingTheBook() = reader { _, _, book ->
+        action("阅读菜单").click()
+        action("关闭阅读菜单")
+        device.pressBack()
+        assertTrue(device.wait(Until.gone(By.desc("关闭阅读菜单")), 5000))
+        action("阅读菜单")
+        device.openReaderThemes()
+        action("关闭主题与设置")
+        device.pressBack()
+        assertTrue(device.wait(Until.gone(By.desc("关闭主题与设置")), 5000))
+        action("阅读菜单")
+        device.pressBack()
+        text(book.title)
+        assertNull("Back did not return to the library", device.findObject(By.desc("阅读菜单")))
     }
 }

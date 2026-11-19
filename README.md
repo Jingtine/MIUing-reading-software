@@ -2,7 +2,7 @@
 
 Android 手机与平板离线阅读器，按 Apple Books 的书库组织与阅读体验开发。使用用户提供的猫咪 M 图标。
 
-当前为 **0.6.0 开发版**，以 EPUB/TXT 文字阅读为开发重点，继续对照 Apple Books。功能与视觉对齐进度见 [对照清单](docs/reference/parity.md)。
+当前为 **0.6.1 开发版**，主适配 Android 16（编译/目标 API 36），兼容下限 Android 8（API 26）。以 EPUB/TXT 文字阅读为开发重点，继续对照 Apple Books。功能与视觉对齐进度见 [对照清单](docs/reference/parity.md)。
 
 ## 当前可用
 
@@ -26,7 +26,7 @@ Android 手机与平板离线阅读器，按 Apple Books 的书库组织与阅�
 
 ## 构建
 
-需要 JDK 17、Android SDK 35（platforms;android-35、build-tools;35.0.0）。
+需要 JDK 17、Android SDK 36（platforms;android-36；现有 AGP 默认使用 build-tools;35.0.0）。
 
 ```powershell
 $env:JAVA_HOME = '你的 JDK 17 安装路径'
@@ -34,7 +34,7 @@ $env:JAVA_HOME = '你的 JDK 17 安装路径'
 .\gradlew.bat :core:check :app:assembleDebug :app:lintDebug
 ```
 
-APK：`app/build/outputs/apk/debug/app-debug.apk`，当前约 25.9 MiB。该 APK 使用开发签名，供本地安装测试。
+APK：`app/build/outputs/apk/debug/app-debug.apk`，当前约 25.5 MiB。该 APK 使用开发签名，供本地安装测试。
 
 PDF 搜索入口在阅读页底部；长按文字后可高亮或添加笔记，顶部画笔可进入手写模式，导出按钮通过系统文件选择器保存带批注的副本。扫描 PDF 暂无 OCR。实现与验证记录见 [PDF 0.3 开发记录](docs/pdf-parity-0.3.md)。
 
@@ -44,6 +44,8 @@ PDF 搜索入口在阅读页底部；长按文字后可高亮或添加笔记，�
 文字排版与主题面板见 [0.5.0 开发记录](docs/theme-panel-0.5.md)，原版参考和仍需校准的部分见 [参考依据](docs/reference/theme-panel-reference.md)。
 
 文字阅读控件、菜单、组件拆分与回归记录见 [0.6.0 开发记录](docs/reader-chrome-0.6.md)。
+
+Android16 主适配与分页边界书签修复见 [0.6.1 开发记录](docs/android16-0.6.1.md)；原包为何不能整体转成 APK、哪些资源可参考见 [移植核对](docs/reference/bundle-portability.md)。
 
 本工作区额外在 `.tools` 中下载了 Gradle 与 Android SDK，均不纳入版本控制。若官方 Gradle 下载受网络限制，可使用本机已校验的 `.tools/gradle-8.13/bin/gradle.bat` 运行同样的任务。
 

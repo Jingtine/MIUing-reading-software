@@ -61,7 +61,15 @@
     if (config.scrolling) shell.scrollTop += rect.top - box.top - config.margin;
     else shell.scrollLeft = Math.max(0, Math.floor((rect.left - box.left + shell.scrollLeft - config.margin + 1) / config.width) * config.width);
   }
-  function jumpAnchor(offset) {const range=rangeAt(offset);if(range) locateRect(range.getBoundingClientRect());}
+  function jumpAnchor(offset) {
+    const range=rangeAt(offset);
+    if(!range) return;
+    // At a column boundary a collapsed caret can belong to the preceding
+    // line. Measure the actual character to select its visible page instead.
+    const node=range.startContainer, start=range.startOffset;
+    if(node.nodeType===Node.TEXT_NODE && start<node.length) range.setEnd(node,start+1);
+    locateRect(range.getBoundingClientRect());
+  }
   window.miuingJumpAnchor = offset => {beginNavigation();retainedAnchor=offset;jumpAnchor(offset);publish();};
   function publishPages() {
     if(config.scrolling || typeof MIUing.pages!=='function') return;

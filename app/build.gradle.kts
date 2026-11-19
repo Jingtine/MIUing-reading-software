@@ -5,13 +5,13 @@ plugins {
 }
 android {
     namespace = "com.miuing.reader"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         applicationId = "com.miuing.reader"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 7
-        versionName = "0.6.0"
+        targetSdk = 36
+        versionCode = 8
+        versionName = "0.6.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true }

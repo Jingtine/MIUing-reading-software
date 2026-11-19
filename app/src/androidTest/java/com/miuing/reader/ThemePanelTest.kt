@@ -90,6 +90,7 @@ class ThemePanelTest {
                 device.pressBack();text("放弃未存储的主题更改？");text("放弃更改").click()
                 assertEquals("Discard changed the saved font","sans",ThemeOptionsStore(prefs).load(0).font)
                 text("自定义").click()
+                text("自定义主题")
                 if(!device.hasObject(By.text("还原主题"))) UiScrollable(UiSelector().scrollable(true)).scrollIntoView(UiSelector().text("还原主题"))
                 text("还原主题").click();text("完成").click();await(s,"window.miuingConfig.fontFamily==='book' && !window.miuingConfig.bold")
                 assertEquals("Original must respect the publisher's actual font","true",js(s,"getComputedStyle(document.body).fontFamily.includes('monospace')"))
