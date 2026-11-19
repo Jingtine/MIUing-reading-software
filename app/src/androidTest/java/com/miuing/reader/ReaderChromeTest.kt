@@ -114,7 +114,7 @@ class ReaderChromeTest {
             )
             listOf("a", "b").forEachIndexed { chapter, name ->
                 entries["$name.xhtml"] = "<html><body><h1 id='chapter$chapter'>Chapter $chapter</h1>" +
-                    (0..140).joinToString("") { "<p>第${it}段。A readable needle in the chapter. 阅读控件应该浮在正文上方，显示和隐藏均保持原文位置。</p>" } + "</body></html>"
+                    (0..140).joinToString("") { "<p id='p$it'>第${it}段。A readable needle in the chapter. 阅读控件应该浮在正文上方，显示和隐藏均保持原文位置。${if(it==100) "<span>定位${chapter} [<em>A+B</em>] &amp; 😀</span>" else ""}</p>" } + "</body></html>"
             }
             entries.forEach { (name, content) -> zip.putNextEntry(ZipEntry(name)); zip.write(content.toByteArray()); zip.closeEntry() }
         }
@@ -329,6 +329,47 @@ class ReaderChromeTest {
         Thread.sleep(250)
         assertEquals(origin, LibraryStore(instrumentation.targetContext).current(book.id).anchor)
         assertTrue(device.wait(Until.gone(By.desc("返回跳转前位置")), 5000))
+    }
+
+    @Test fun searchTypingKeepsSourceAndSelectedHitReturnsAfterRecreation() = reader { scenario, _, book ->
+        js(scenario, "window.miuingJump(.25)")
+        Thread.sleep(300)
+        val origin = LibraryStore(instrumentation.targetContext).current(book.id).anchor
+        val expected = js(scenario, "(()=>{const r=document.createRange();r.selectNodeContents(document.getElementById('miuing-content'));r.setEnd(document.querySelector('#p100 span'),0);return r.toString().length})()").toInt()
+        action("阅读菜单").click()
+        action("在图书中搜索").click()
+        device.wait(Until.findObject(By.clazz("android.widget.EditText")), 5000)!!.text = "定位0 [a+b] & 😀"
+        val hit = device.wait(Until.findObject(By.textContains("定位0 [A+B]")), 5000)!!
+        Thread.sleep(300)
+        assertEquals("Typing moved the source passage", origin, LibraryStore(instrumentation.targetContext).current(book.id).anchor)
+        hit.click()
+        await(scenario, "!!window.miuingConfig && !!document.querySelector('[data-miuing-search]')")
+        assertEquals(expected, LibraryStore(instrumentation.targetContext).current(book.id).anchor)
+        assertEquals("Search hit is outside the visible page", "true", js(scenario, "(()=>{const r=document.querySelector('[data-miuing-search]').getBoundingClientRect();return r.left>=0 && r.left<window.miuingWidth && r.top>=0 && r.top<window.miuingHeight})()"))
+        screenshot(scenario, "text-reader-search.png")
+        js(scenario, "window.miuingJump(.9)")
+        Thread.sleep(300)
+        val continued = LibraryStore(instrumentation.targetContext).current(book.id).anchor
+        scenario.recreate()
+        await(scenario, "!!window.miuingConfig && window.miuingConfig.anchor===$continued && !!document.querySelector('[data-miuing-search]')")
+        action("返回跳转前位置").click()
+        await(scenario, "!!window.miuingConfig && window.miuingConfig.anchor===$origin && !document.querySelector('[data-miuing-search]')")
+        assertTrue(device.wait(Until.gone(By.desc("返回跳转前位置")), 5000))
+    }
+
+    @Test fun crossChapterSearchLocatesHitAndNaturalChapterMovementDoesNotReuseIt() = reader { scenario, _, book ->
+        js(scenario, "window.miuingJump(.3)")
+        Thread.sleep(300)
+        val origin = LibraryStore(instrumentation.targetContext).current(book.id).anchor
+        action("阅读菜单").click()
+        action("在图书中搜索").click()
+        device.wait(Until.findObject(By.clazz("android.widget.EditText")), 5000)!!.text = "定位1 [a+b] & 😀"
+        device.wait(Until.findObject(By.textContains("定位1 [A+B]")), 5000)!!.click()
+        await(scenario, "!!document.getElementById('chapter1') && !!window.miuingConfig && window.miuingProgress()>.5")
+        action("返回跳转前位置").click()
+        await(scenario, "!!document.getElementById('chapter0') && !!window.miuingConfig && window.miuingConfig.anchor===$origin")
+        js(scenario, "MIUing.chapter(1)")
+        await(scenario, "!!document.getElementById('chapter1') && !!window.miuingConfig && window.miuingProgress()<.1 && !document.querySelector('[data-miuing-search]')")
     }
 
     @Test fun unreadableChapterStillAllowsReturnToTheSource() = reader { scenario, _, book ->

@@ -47,7 +47,7 @@ class ReaderEngineTest {
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun reader(paragraphs: Int, block: (WebView, Bridge) -> Unit) {
+    private fun reader(paragraphs: Int, setup: String = "", initialPatch: String = "{}", block: (WebView, Bridge) -> Unit) {
         val script = loadReaderScript(instrument.targetContext)
         val bridge = Bridge()
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
@@ -62,7 +62,7 @@ class ReaderEngineTest {
                             override fun onPageFinished(v: WebView, url: String) {
                                 val counter = "window.textWalks=0;const walk=document.createTreeWalker.bind(document);document.createTreeWalker=function(root,kind){if(root.id==='miuing-content' && kind===NodeFilter.SHOW_TEXT)window.textWalks++;return walk.apply(document,arguments)};"
                                 val config = "window.testConfig={paper:'#fff',ink:'#222',width:360,height:500,fontSize:20,margin:24,scrolling:true,fontFamily:'book',customLayout:false,position:0,anchor:-1,notes:[]};"
-                                v.evaluateJavascript(counter + script + ";" + config + "window.miuingConfigure(window.testConfig);requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>window.engineReady=true))))", null)
+                                v.evaluateJavascript(counter + script + ";" + setup + ";" + config + "Object.assign(window.testConfig,$initialPatch);window.miuingConfigure(window.testConfig);requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>window.engineReady=true))))", null)
                             }
                         }
                     }
@@ -84,6 +84,41 @@ class ReaderEngineTest {
         val walks = js(view, "window.textWalks").toInt()
         println("ENGINE_LOOKUPS walks=$walks elapsedMs=${js(view, "window.lookupMs")}")
         assertTrue("Repeated navigation rescanned the whole chapter $walks times", walks <= 1)
+    }
+
+    private val searchSetup = """
+        (()=>{
+          const p=document.getElementById('p120');
+          p.innerHTML='MiXeD [<em>A+B</em>] &amp; 😀 and the rest of the passage.';
+          const prefix=document.createRange();prefix.selectNodeContents(document.body);prefix.setEnd(p,0);
+          window.searchStart=prefix.toString().length;
+          const ignored=document.createElement('style');ignored.textContent='/* MiXeD [A+B] & 😀 */';document.head.appendChild(ignored);
+        })()
+    """.trimIndent()
+
+    @Test fun selectedSearchLocatesLiteralCrossInlineTextAndComposesNotes() = reader(150, searchSetup,
+        "{search:'mixed [a+b] & 😀',notes:[{start:window.searchStart+2,end:window.searchStart+14,text:'overlap'}]}") { view, _ ->
+        assertEquals("Selected search did not move beyond the chapter start", "true", js(view, "window.miuingProgress()>.5"))
+        assertEquals("Search must retain actual DOM UTF-16 offset", js(view, "window.searchStart"), js(view, "(()=>{const r=document.createRange();r.selectNodeContents(document.getElementById('miuing-content'));r.setEnd(document.querySelector('[data-miuing-search]'),0);return r.toString().length})()"))
+        assertEquals("Literal punctuation/case/inline search was not marked", "true", js(view, "Array.from(document.querySelectorAll('[data-miuing-search]')).map(n=>n.textContent).join('')==='MiXeD [A+B] & 😀'"))
+        assertEquals("Overlap changed note coverage", "true", js(view, "Array.from(document.querySelectorAll('[data-miuing]')).map(n=>n.textContent).join('')===document.getElementById('miuing-content').textContent.slice(window.searchStart+2,window.searchStart+14)"))
+        assertEquals("Search target is outside the viewport", "true", js(view, "(()=>{const r=document.querySelector('[data-miuing-search]').getBoundingClientRect();return r.top>=0 && r.top<window.miuingHeight})()"))
+        js(view, "window.savedText=document.getElementById('miuing-content').textContent;window.savedSearch=document.querySelector('[data-miuing-search]')")
+        configure(view, "{fontSize:22,paper:'#eee'}")
+        assertEquals("Unchanged search rebuilt its DOM", "true", js(view, "window.savedSearch===document.querySelector('[data-miuing-search]')"))
+        configure(view, "{search:'not present'}")
+        assertEquals("Missing hit left stale search or changed text", "true", js(view, "!document.querySelector('[data-miuing-search]') && !!document.querySelector('[data-miuing]') && window.savedText===document.getElementById('miuing-content').textContent"))
+        configure(view, "{search:''}")
+        assertEquals("Search must not mutate text", "true", js(view, "window.savedText===document.getElementById('miuing-content').textContent"))
+    }
+
+    @Test fun initialSearchSurvivesConsecutivePagedConfigurationsAndSavedAnchorWins() = reader(150,
+        "$searchSetup;window.requestAnimationFrame(function(){window.miuingConfigure(Object.assign(window.testConfig,{fontSize:21,height:520}))})",
+        "{search:'mixed [a+b] & 😀',scrolling:false}") { view, _ ->
+        assertEquals("Paged initial search was lost during configuration", "true", js(view, "(()=>{const r=document.querySelector('[data-miuing-search]').getBoundingClientRect();return r.left>=0 && r.left<window.miuingWidth && r.top>=0 && r.top<window.miuingHeight})()"))
+        js(view, "window.miuingJumpAnchor(20)")
+        configure(view, "{fontSize:23}")
+        assertEquals("Changing typography jumped back to search", "true", js(view, "window.miuingProgress()<.1"))
     }
 
     private fun select(view: WebView, bridge: Bridge, mutation: String = ""): Int {

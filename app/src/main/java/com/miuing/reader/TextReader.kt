@@ -98,8 +98,10 @@ internal fun loadReaderScript(context:android.content.Context):String =
     }
     val overlay=remember(web) {PageTurnOverlay(context)}
     val initial=remember(web) { Triple(position,anchor,fragment) }
+    val initialSearch=remember(web) { search }
     val configuration=JSONObject().apply {
         put("position",initial.first);put("anchor",initial.second);put("fragment",initial.third)
+        put("search",initialSearch)
         put("paper","#%06x".format(theme.paper.toArgb() and 0xffffff))
         put("ink","#%06x".format(theme.ink.toArgb() and 0xffffff))
         put("fontSize",fontSize);put("scrolling",scrolling);put("serif",serif);put("bold",boldText)
@@ -117,7 +119,6 @@ internal fun loadReaderScript(context:android.content.Context):String =
     bridge.turnPage={direction->if(loaded) overlay.turn(web,pageTurn,direction,theme.paper.toArgb()) {ready->web.evaluateJavascript("window.miuingAdvance($direction)") {ready()}}}
     DisposableEffect(web) { onDispose { bridge.active=false;overlay.clear();web.stopLoading();web.removeJavascriptInterface("MIUing");(web.parent as? ViewGroup)?.removeView(web);web.destroy() } }
     LaunchedEffect(configuration,loaded) { if(loaded) {overlay.clear();web.evaluateJavascript(script(web),null)} }
-    LaunchedEffect(search,loaded) { if(loaded && search.isNotBlank()) web.findAllAsync(search) else web.clearMatches() }
     key(web) { AndroidView(factory={FrameLayout(context).apply {
         addView(web,FrameLayout.LayoutParams(-1,-1));addView(overlay,FrameLayout.LayoutParams(-1,-1))
     }},modifier=Modifier.fillMaxSize().onSizeChanged {

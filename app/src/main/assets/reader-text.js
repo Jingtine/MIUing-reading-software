@@ -86,18 +86,28 @@
       return range;
     }
 
-    highlights(notes) {
+    find(query) {
+      if (!query || !query.trim()) return null;
+      // Escape each literal part, allowing equivalent HTML whitespace without
+      // changing the UTF-16 offsets returned by the actual DOM text match.
+      const pattern = query.trim().split(/\s+/).map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+      const text = this.entries().map(entry => entry.node.data).join('');
+      const match = new RegExp(pattern, 'i').exec(text);
+      return match ? { start: match.index, end: match.index + match[0].length } : null;
+    }
+
+    highlights(notes, query = '') {
       this.flushChanges();
-      const key = JSON.stringify(notes);
+      const key = JSON.stringify([notes, query]);
       if (key === this.notesKey) return;
       // These edits preserve the text. Invalidate the node index explicitly,
       // but don't treat our own wrapping as a new book-content revision.
       this.observer.disconnect();
       try {
-        this.root.querySelectorAll('mark[data-miuing]').forEach(mark => mark.replaceWith(...mark.childNodes));
+        this.root.querySelectorAll('mark[data-miuing],mark[data-miuing-search]').forEach(mark => mark.replaceWith(...mark.childNodes));
         this.root.normalize();
         this.invalidate();
-        if (!notes.length) { this.notesKey = key; return; }
+        if (!notes.length && !query) { this.notesKey = key; return; }
         const entries = this.entries();
         const last = entries[entries.length - 1];
         const length = last ? last.offset + last.node.length : 0;
@@ -113,12 +123,25 @@
           end = Math.min(end, length);
           if (start >= 0 && end > start) ranges.push({ start, end });
         }
-        ranges.sort((a, b) => a.start - b.start || a.end - b.end);
-        const merged = [];
+        const hit = this.find(query);
+        // Composite note union and the temporary search hit into disjoint
+        // segments; overlaps retain both meanings without nested marks.
+        const events = [];
         for (const range of ranges) {
-          const previous = merged[merged.length - 1];
-          if (previous && range.start <= previous.end) previous.end = Math.max(previous.end, range.end);
-          else merged.push({ start: range.start, end: range.end });
+          events.push({ at: range.start, note: 1, search: 0 }, { at: range.end, note: -1, search: 0 });
+        }
+        if (hit) events.push({ at: hit.start, note: 0, search: 1 }, { at: hit.end, note: 0, search: -1 });
+        events.sort((a, b) => a.at - b.at);
+        const merged = [];
+        let at = 0, noteCount = 0, searchCount = 0;
+        for (const event of events) {
+          if (event.at > at && (noteCount || searchCount)) {
+            const previous = merged[merged.length - 1];
+            const note = noteCount > 0, search = searchCount > 0;
+            if (previous && previous.end === at && previous.note === note && previous.search === search) previous.end = event.at;
+            else merged.push({ start: at, end: event.at, note, search });
+          }
+          noteCount += event.note; searchCount += event.search; at = event.at;
         }
         let first = 0;
         for (const entry of entries) {
@@ -134,7 +157,8 @@
             const b = Math.min(entry.node.length, merged[i].end - entry.offset);
             if (a > cursor) fragment.appendChild(document.createTextNode(entry.node.data.slice(cursor, a)));
             const mark = document.createElement('mark');
-            mark.dataset.miuing = '1';
+            if (merged[i].note) mark.dataset.miuing = '1';
+            if (merged[i].search) mark.dataset.miuingSearch = '1';
             mark.textContent = entry.node.data.slice(a, b);
             fragment.appendChild(mark);
             cursor = b;

@@ -38,6 +38,7 @@ import kotlinx.coroutines.CancellationException
     var pages by remember(chapter) { mutableStateOf<ReaderPageInfo?>(null) }
     var panel by remember { mutableStateOf<ReaderPanel?>(null) }
     var search by remember { mutableStateOf("") }
+    var searchTarget by rememberSaveable(initial.id) { mutableStateOf("") }
     var results by remember { mutableStateOf<List<Pair<Int,String>>>(emptyList()) }
     var selection by remember { mutableStateOf("") }
     var selectedRange by remember { mutableStateOf(SelectedText()) }
@@ -124,7 +125,7 @@ import kotlinx.coroutines.CancellationException
     val savePosition:(Int,Float)->Unit={c,p ->
         fragment="";saveLocated(c,p,-1);selection=""
     }
-    fun navigate(c:Int,p:Float=0f,a:Int=-1,target:String="") {
+    fun navigate(c:Int,p:Float=0f,a:Int=-1,target:String="",find:String="") {
         if(book.format!="PDF") {
             if(locationAvailable==null) return
             if(locationAvailable==true) {
@@ -132,7 +133,7 @@ import kotlinx.coroutines.CancellationException
                 if(history.lastOrNull()!=source) history=(history+source).takeLast(20)
             }
         }
-        saveLocated(c,p,a);fragment=target;selection="";selectedRange=SelectedText()
+        saveLocated(c,p,a);fragment=target;searchTarget=find;selection="";selectedRange=SelectedText()
         locationAvailable=null;jump++
     }
     fun returnToSource() {
@@ -140,6 +141,7 @@ import kotlinx.coroutines.CancellationException
         val source=history.lastOrNull() ?: return
         history=history.dropLast(1)
         saveLocated(source.chapter,source.position,source.anchor)
+        searchTarget=""
         selection="";selectedRange=SelectedText();locationAvailable=null;jump++
     }
     fun toggleBookmark() {
@@ -185,9 +187,9 @@ import kotlinx.coroutines.CancellationException
                     else if(p.chapters.isNotEmpty()) {
                         val safeChapter=chapter.coerceIn(0,p.chapters.size-1)
                         val readerJump=jump
-                        TextReader(p,java.io.File(java.io.File(book.source).parentFile,"content"),safeChapter,position,jump,theme,fontSize,scrolling,options.font!="sans",search,book.notes,
+                        TextReader(p,java.io.File(java.io.File(book.source).parentFile,"content"),safeChapter,position,jump,theme,fontSize,scrolling,options.font!="sans",searchTarget,book.notes,
                             onPosition={savePosition(safeChapter,it)},onTap={controls=!controls},onSelection={selection=it},
-                            onChapter={next -> if(next in p.chapters.indices) { savePosition(next,if(next<safeChapter) 1f else 0f);jump++ } },
+                            onChapter={next -> if(next in p.chapters.indices) { searchTarget="";savePosition(next,if(next<safeChapter) 1f else 0f);jump++ } },
                             anchor=anchor,fragment=fragment,lineHeight=effectiveOptions.lineHeight,margin=effectiveOptions.margin,letterSpacing=effectiveOptions.letterSpacing,pageTurn=pageTurn,
                             fontFamily=options.font,boldText=options.bold,wordSpacing=effectiveOptions.wordSpacing,justify=effectiveOptions.justify,customLayout=options.customLayout,
                             onLocation={progress,at->if(jump==readerJump) {saveLocated(safeChapter,progress,at);locationAvailable=true}},
@@ -260,7 +262,7 @@ import kotlinx.coroutines.CancellationException
                     }
                     ReaderPanel.Search -> ReaderSearchPanel(search, results, pdfHits, searching, searchProblem ?: if (book.format == "PDF") pdfProblem else null,
                         onQuery = { search = it },
-                        onResult = { next -> keyboard?.hide(); navigate(next); panel = null },
+                        onResult = { next -> keyboard?.hide(); navigate(next,find=search); panel = null },
                         onPdfHit = { hit -> keyboard?.hide(); savePosition(hit.page, 0f); pdfHit = hit; jump++; panel = null })
                     ReaderPanel.GoToPage -> ReaderPageJump(pdfService?.pageCount) { page -> keyboard?.hide(); savePosition(page, 0f); jump++; panel = null }
                     ReaderPanel.AddNote,ReaderPanel.EditNote -> {
