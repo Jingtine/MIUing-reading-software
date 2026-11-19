@@ -6,6 +6,7 @@ import android.os.Looper
 import android.webkit.*
 import android.widget.FrameLayout
 import android.view.ViewGroup
+import android.view.View
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -23,11 +24,12 @@ import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.File
 
-private class ReadingBridge(val location:(Float,Int)->Unit,val tap:()->Unit,val selection:(SelectedText)->Unit,val chapter:(Int)->Unit) {
+private class ReadingBridge(val location:(Float,Int)->Unit,val tap:()->Unit,val selection:(SelectedText)->Unit,val chapter:(Int)->Unit,val pages:(ReaderPageInfo)->Unit) {
     private val main=Handler(Looper.getMainLooper())
     var active=true
     var turnPage:(Int)->Unit={}
     @JavascriptInterface fun progress(p:Float,anchor:Int) { main.post { if(active) location(p,anchor) } }
+    @JavascriptInterface fun pages(current:Int,total:Int) { main.post { if(active && total>0 && current in 1..total) pages(ReaderPageInfo(current,total)) } }
     @JavascriptInterface fun tap() { main.post { if(active) tap.invoke() } }
     @JavascriptInterface fun selection(text:String,start:Int,end:Int) { main.post { if(active) selection(SelectedText(text,start,end)) } }
     @JavascriptInterface fun chapter(direction:Int) { main.post { if(active) chapter.invoke(direction) } }
@@ -48,7 +50,8 @@ private fun attachReadingBridge(view:WebView,bridge:ReadingBridge) {
     lineHeight:Float=1.85f,margin:Float=24f,letterSpacing:Float=0f,pageTurn:String="curl",
     fontFamily:String=if(serif) "serif" else "sans",boldText:Boolean=theme.name=="粗体",wordSpacing:Float=0f,justify:Boolean=false,customLayout:Boolean=true,
     onLocation:(Float,Int)->Unit={p,_->onPosition(p)},
-    onSelectionRange:(SelectedText)->Unit={onSelection(it.text)},onLink:(Int,String)->Unit={i,_->onChapter(i)}
+    onSelectionRange:(SelectedText)->Unit={onSelection(it.text)},onLink:(Int,String)->Unit={i,_->onChapter(i)},
+    onPages:(ReaderPageInfo)->Unit={}
 ) {
     val context=androidx.compose.ui.platform.LocalContext.current
     val latestLocation by rememberUpdatedState(onLocation)
@@ -56,6 +59,7 @@ private fun attachReadingBridge(view:WebView,bridge:ReadingBridge) {
     val latestSelection by rememberUpdatedState(onSelectionRange)
     val latestChapter by rememberUpdatedState(onChapter)
     val latestLink by rememberUpdatedState(onLink)
+    val latestPages by rememberUpdatedState(onPages)
     val path=publication.chapters[chapter].path.toFile()
     var html by remember(path) { mutableStateOf<String?>(null) }
     var readError by remember(path) { mutableStateOf<String?>(null) }
@@ -66,8 +70,12 @@ private fun attachReadingBridge(view:WebView,bridge:ReadingBridge) {
     }
     if(readError!=null) { Text("无法读取此章节：$readError");return }
     val loader=remember(root) { WebViewAssetLoader.Builder().addPathHandler("/book/",WebViewAssetLoader.InternalStoragePathHandler(context,root)).build() }
-    val bridge:ReadingBridge=remember(path,jump,scrolling) { ReadingBridge({p,a->latestLocation(p,a)},{latestTap()},{latestSelection(it)},{latestChapter(chapter+it)}) }
+    val bridge:ReadingBridge=remember(path,jump,scrolling) { ReadingBridge({p,a->latestLocation(p,a)},{latestTap()},{latestSelection(it)},{latestChapter(chapter+it)},{latestPages(it)}) }
     val webResult=remember(path,jump,scrolling) { runCatching { WebView(context).apply {
+        // Chromium 69 leaves black raster tiles behind modal windows on API26.
+        // Keep the fallback scoped to legacy providers; current WebViews stay accelerated.
+        val providerMajor=WebView.getCurrentWebViewPackage()?.versionName?.substringBefore('.')?.toIntOrNull()
+        if(providerMajor!=null && providerMajor<=69) setLayerType(View.LAYER_TYPE_SOFTWARE,null)
         settings.javaScriptEnabled=true;settings.allowFileAccess=false;settings.allowContentAccess=false
         settings.blockNetworkLoads=true;settings.domStorageEnabled=false
         settings.useWideViewPort=true;settings.loadWithOverviewMode=false

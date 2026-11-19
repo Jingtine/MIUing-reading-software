@@ -57,7 +57,7 @@ class ThemePanelTest {
     @Test fun compactThemeHierarchyCommitsDiscardsRestoresAndResets()=reader {s,prefs,context->
                 js(s,"window.miuingJump(.4)");Thread.sleep(400)
                 val passage=js(s,"window.miuingAnchor()").toInt();assertTrue(passage>100)
-                text("aA").click()
+                device.openReaderThemes()
                 assertNotNull("Compact panel must have the original Customize entry",device.wait(Until.findObject(By.text("自定义")),5000))
                 assertNull("Detailed layout sliders must live under Customize",device.findObject(By.desc("行距")))
                 val original=text("原始").visibleBounds;val paper=text("纸张").visibleBounds;val bold=text("粗体").visibleBounds
@@ -100,7 +100,7 @@ class ThemePanelTest {
                 assertTrue("Theme changes lost the passage: before=$passage, after=$after",kotlin.math.abs(after-passage)<200)
     }
     @Test fun shortPanelOpensCustomizationAtItsHeading()=reader {s,_,context->
-        text("aA").click()
+        device.openReaderThemes()
         try {
             device.setOrientationLeft();text("主题与设置")
             if(!device.hasObject(By.text("自定义"))) UiScrollable(UiSelector().scrollable(true)).scrollIntoView(UiSelector().text("自定义"))

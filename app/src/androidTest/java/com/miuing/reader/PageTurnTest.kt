@@ -78,6 +78,20 @@ class PageTurnTest {
         instrument.runOnMainSync {view.evaluateJavascript(code) {result=it;latch.countDown()}}
         assertTrue("JavaScript did not respond",latch.await(10,TimeUnit.SECONDS));return result
     }
+    @Test fun slowHorizontalSwipeTurnsButStationaryLongPressDoesNot()=withAnimationScale("0") {
+        fixture {s,_->
+            js(s,"window.chromeTouch=(name,x)=>{const e=new Event(name,{bubbles:true,cancelable:true});Object.defineProperty(e,'changedTouches',{value:[{clientX:window.miuingWidth*x,clientY:window.miuingHeight*.5}]});document.body.dispatchEvent(e)};window.chromeTouch('touchstart',.8)")
+            Thread.sleep(700)
+            js(s,"window.chromeTouch('touchend',.2);document.body.dispatchEvent(new MouseEvent('click',{bubbles:true,detail:1,clientX:window.miuingWidth*.2,clientY:window.miuingHeight*.5}))")
+            awaitJs(s,"window.miuingProgress()>0")
+            assertEquals("A deliberate slow swipe was treated as a long press",1.0,js(s,"document.getElementById('miuing-scroll').scrollLeft/window.miuingWidth").toDouble(),.02)
+            js(s,"window.chromeTouch('touchstart',.92)")
+            Thread.sleep(700)
+            js(s,"window.chromeTouch('touchend',.92);document.body.dispatchEvent(new MouseEvent('click',{bubbles:true,detail:1,clientX:window.miuingWidth*.92,clientY:window.miuingHeight*.5}))")
+            Thread.sleep(200)
+            assertEquals("A stationary long press must not turn the page",1.0,js(s,"document.getElementById('miuing-scroll').scrollLeft/window.miuingWidth").toDouble(),.02)
+        }
+    }
     @Test fun freshTapAfterSwipeIsAcceptedWithoutItsSyntheticClick()=withAnimationScale("0") {
         fixture {s,_->
             js(s,"""(()=>{
@@ -161,13 +175,13 @@ class PageTurnTest {
         tap(s,.92f);Thread.sleep(400)
         assertEquals("Text selection should suppress turning",0.0,js(s,"window.miuingProgress()").toDouble(),.001)
         js(s,"getSelection().removeAllRanges()");Thread.sleep(300)
-        device.wait(Until.findObject(By.desc("下一章")),5000)!!.click()
+        device.readerAction("下一章").click()
         awaitJs(s,"!!document.getElementById('chapter1') && !!window.miuingConfig")
         tap(s,.08f)
         awaitJs(s,"!!document.getElementById('chapter0') && !!window.miuingConfig")
         awaitJs(s,"window.miuingProgress()>.99")
         assertTrue("Backward chapter navigation must reach the previous chapter's end",js(s,"window.miuingProgress()").toDouble()>.99)
-        device.wait(Until.findObject(By.desc("下一章")),5000)!!.click()
+        device.readerAction("下一章").click()
         awaitJs(s,"!!document.getElementById('chapter1') && !!window.miuingConfig")
         js(s,"window.miuingJump(1)");Thread.sleep(250);tap(s,.92f);Thread.sleep(400)
         assertEquals("Final chapter must remain at its end","true",js(s,"!!document.getElementById('chapter1') && window.miuingProgress()>.99"))
@@ -178,7 +192,7 @@ class PageTurnTest {
             // Slow real system animations to capture an intermediate rendered frame.
             device.executeShellCommand("settings put global animator_duration_scale 3")
             fixture {s,_->
-        device.wait(Until.findObject(By.text("aA")),5000)!!.click()
+        device.openReaderThemes()
         val style=device.wait(Until.findObject(By.desc("翻页样式")),5000)
         assertNotNull("Page turn style choices are missing",style);style.click()
         val fade=device.wait(Until.findObject(By.text("快速淡入淡出")),5000)
@@ -187,7 +201,7 @@ class PageTurnTest {
         scenarioTurnAndCapture(s,"fade-turn.png")
         s.recreate();awaitJs(s,"!!window.miuingConfig && window.miuingConfig.pageTurn==='fade'")
         assertTrue("Page turn preference was lost",instrument.targetContext.getSharedPreferences("reading",0).getString("pageTurn","")=="fade")
-        device.wait(Until.findObject(By.text("aA")),5000)!!.click()
+        device.openReaderThemes()
         device.wait(Until.findObject(By.desc("翻页样式")),5000)!!.click()
         device.wait(Until.findObject(By.text("卷页")),5000)!!.click();device.wait(Until.findObject(By.desc("关闭主题与设置")),5000)!!.click()
         awaitJs(s,"window.miuingConfig.pageTurn==='curl'")
@@ -201,7 +215,7 @@ class PageTurnTest {
         while(oldOverlay!!.visibility!=View.GONE && System.currentTimeMillis()<disposedBy) Thread.sleep(30)
         assertEquals("Recreation retained the old snapshot",View.GONE,oldOverlay!!.visibility)
         awaitJs(s,"!!window.miuingConfig && window.miuingProgress()>0")
-        device.wait(Until.findObject(By.text("aA")),5000)!!.click()
+        device.openReaderThemes()
         device.wait(Until.findObject(By.desc("翻页样式")),5000)!!.click()
         device.wait(Until.findObject(By.desc("连续滚动")),5000)!!.click();device.wait(Until.findObject(By.desc("关闭主题与设置")),5000)!!.click()
         awaitJs(s,"window.miuingConfig.scrolling")

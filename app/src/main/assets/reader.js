@@ -63,8 +63,16 @@
   }
   function jumpAnchor(offset) {const range=rangeAt(offset);if(range) locateRect(range.getBoundingClientRect());}
   window.miuingJumpAnchor = offset => {beginNavigation();retainedAnchor=offset;jumpAnchor(offset);publish();};
+  function publishPages() {
+    if(config.scrolling || typeof MIUing.pages!=='function') return;
+    const total=Math.ceil(extent()/config.width)+1;
+    const current=extent()-shell.scrollLeft<=1?total:Math.min(total,Math.floor((shell.scrollLeft+1)/config.width)+1);
+    MIUing.pages(current,total);
+  }
   function publish() {
-    if (!restoring) MIUing.progress(window.miuingProgress(), retainedAnchor>=0?retainedAnchor:window.miuingAnchor());
+    if (restoring) return;
+    MIUing.progress(window.miuingProgress(), retainedAnchor>=0?retainedAnchor:window.miuingAnchor());
+    publishPages();
   }
   function highlights(notes) {
     flow.querySelectorAll('mark[data-miuing]').forEach(mark => mark.replaceWith(...mark.childNodes));
@@ -155,7 +163,15 @@
       hasPosition=true;pendingInitial=null;
       // Keep one logical passage through consecutive layout changes. Page starts
       // differ across fonts; repeatedly capturing them would drift backward.
-      requestAnimationFrame(()=>{if(revision===layoutRevision) {restoring=false;publish();}});
+      requestAnimationFrame(()=>{
+        if(revision!==layoutRevision) return;
+        restoring=false;publish();
+        // Publisher fonts may finish after the first layout. Refresh metrics
+        // for this configuration without writing progress or undoing navigation.
+        if(document.fonts) document.fonts.ready.then(()=>requestAnimationFrame(()=>{
+          if(config===next && !restoring) publishPages();
+        }));
+      });
     }));
   };
   document.addEventListener('selectionchange', () => {
@@ -191,9 +207,10 @@
   }, { passive:true });
   document.addEventListener('touchend', e => {
     if (!config || config.scrolling || e.target.closest('a')) return;
-    if (selectedAtTouch || getSelection().toString() || Date.now()-touchAt>600) {suppressTouchClick=true;return;}
+    if (selectedAtTouch || getSelection().toString()) {suppressTouchClick=true;return;}
     const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
     if (Math.abs(dx)>55 && Math.abs(dx)>Math.abs(dy)) { suppressTouchClick=true;turn(dx<0?1:-1); e.preventDefault(); }
+    else if (Date.now()-touchAt>600) suppressTouchClick=true;
   }, { passive:false });
   document.addEventListener('click', e => {
     // Keep suppressing this touch's click even if rendering delays its delivery.
