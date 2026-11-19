@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
@@ -29,7 +30,9 @@ fun TextReaderChrome(
     scrolling: Boolean,
     onClose: () -> Unit,
     onMenu: () -> Unit,
-    selectionActions: @Composable () -> Unit
+    selectionActions: @Composable () -> Unit,
+    onReturn: (() -> Unit)? = null,
+    returnEnabled: Boolean = true
 ) {
     Box(Modifier.fillMaxSize()) {
         Row(
@@ -54,7 +57,9 @@ fun TextReaderChrome(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(TextReaderChromeBottomInset).padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Spacer(Modifier.width(48.dp))
+            if (onReturn != null) IconButton(onClick = onReturn, enabled = returnEnabled) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "返回跳转前位置", tint = theme.ink)
+            } else Spacer(Modifier.width(48.dp))
             val label = if (!scrolling && pages != null) "本章 ${pages.current} / ${pages.total}" else "第 ${chapter + 1} 章 · ${(position * 100).toInt()}%"
             val description = if (!scrolling && pages != null) "本章第 ${pages.current} 页，共 ${pages.total} 页" else "本章进度 ${(position * 100).toInt()}%"
             Text(

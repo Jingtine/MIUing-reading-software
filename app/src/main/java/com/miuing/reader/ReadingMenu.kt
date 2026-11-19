@@ -9,8 +9,8 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -36,9 +36,9 @@ fun ReadingMenu(
     onThemes: () -> Unit,
     onBookmark: () -> Unit,
     onChapter: (Int) -> Unit,
-    onPosition: (Float) -> Unit,
-    onSeek: () -> Unit
+    onSeek: (Float) -> Unit
 ) {
+    var preview by rememberSaveable(chapter) { mutableFloatStateOf(position) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         BoxWithConstraints(Modifier.fillMaxSize().systemBarsPadding()) {
             Box(Modifier.fillMaxSize().clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, onClick = onDismiss))
@@ -62,13 +62,13 @@ fun ReadingMenu(
                         MenuAction(if (bookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, if (bookmarked) "移除书签" else "添加书签", onClick = onBookmark)
                         MenuAction(Icons.Default.EditNote, "高亮标记和笔记") { onPanel(ReaderPanel.Notes) }
                         HorizontalDivider(Modifier.padding(vertical = 10.dp), color = theme.ink.copy(alpha = .12f))
-                        Text("第 ${chapter + 1} / ${chapterCount.coerceAtLeast(1)} 章 · ${(position * 100).toInt()}%", fontSize = 12.sp, color = theme.ink)
+                        Text("第 ${chapter + 1} / ${chapterCount.coerceAtLeast(1)} 章 · ${(preview * 100).toInt()}%", fontSize = 12.sp, color = theme.ink)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { onChapter(chapter - 1) }, enabled = chapter > 0) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "上一章") }
                             Slider(
-                                value = position,
-                                onValueChange = onPosition,
-                                onValueChangeFinished = onSeek,
+                                value = preview,
+                                onValueChange = { preview = it },
+                                onValueChangeFinished = { onSeek(preview) },
                                 modifier = Modifier.weight(1f).semantics { contentDescription = "阅读进度" },
                                 colors = SliderDefaults.colors(thumbColor = theme.ink, activeTrackColor = theme.ink, inactiveTrackColor = theme.ink.copy(alpha = .12f))
                             )

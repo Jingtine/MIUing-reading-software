@@ -32,6 +32,7 @@ import kotlinx.coroutines.CancellationException
     var anchor by rememberSaveable(initial.id) { mutableIntStateOf(initial.anchor) }
     var fragment by remember { mutableStateOf("") }
     var jump by remember { mutableIntStateOf(0) }
+    var history by rememberSaveable(initial.id, stateSaver = ReadingHistorySaver) { mutableStateOf(emptyList<ReadingLocation>()) }
     var controls by rememberSaveable { mutableStateOf(true) }
     var menuOpen by rememberSaveable { mutableStateOf(false) }
     var pages by remember(chapter) { mutableStateOf<ReaderPageInfo?>(null) }
@@ -75,6 +76,8 @@ import kotlinx.coroutines.CancellationException
     var themeIndex by rememberSaveable { mutableIntStateOf(preferences.getInt("theme",0).coerceIn(0,5)) }
     var fontSize by rememberSaveable { mutableFloatStateOf(preferences.getFloat("size",20f)) }
     var scrolling by rememberSaveable { mutableStateOf(preferences.getBoolean("scroll",false)) }
+    // null while loading, true for a published location, false after a load error.
+    var locationAvailable by remember(initial.id, chapter, jump, scrolling) { mutableStateOf<Boolean?>(null) }
     var themeOpen by rememberSaveable {mutableStateOf(false)}
     var pageTurn by rememberSaveable {mutableStateOf(preferences.getString("pageTurn","curl").let {if(it=="fade") "fade" else "curl"})}
     val optionsStore=remember(preferences) {ThemeOptionsStore(preferences)}
@@ -121,6 +124,24 @@ import kotlinx.coroutines.CancellationException
     val savePosition:(Int,Float)->Unit={c,p ->
         fragment="";saveLocated(c,p,-1);selection=""
     }
+    fun navigate(c:Int,p:Float=0f,a:Int=-1,target:String="") {
+        if(book.format!="PDF") {
+            if(locationAvailable==null) return
+            if(locationAvailable==true) {
+                val source=ReadingLocation(chapter,position,anchor)
+                if(history.lastOrNull()!=source) history=(history+source).takeLast(20)
+            }
+        }
+        saveLocated(c,p,a);fragment=target;selection="";selectedRange=SelectedText()
+        locationAvailable=null;jump++
+    }
+    fun returnToSource() {
+        if(locationAvailable==null) return
+        val source=history.lastOrNull() ?: return
+        history=history.dropLast(1)
+        saveLocated(source.chapter,source.position,source.anchor)
+        selection="";selectedRange=SelectedText();locationAvailable=null;jump++
+    }
     fun toggleBookmark() {
         val current = store.current(book.id)
         val existing = current.marks.firstOrNull { it.chapter == chapter && kotlin.math.abs(it.position - position) < .015f }
@@ -163,14 +184,16 @@ import kotlinx.coroutines.CancellationException
                         onMessage={message->scope.launch {snackbar.showSnackbar(message)}})
                     else if(p.chapters.isNotEmpty()) {
                         val safeChapter=chapter.coerceIn(0,p.chapters.size-1)
+                        val readerJump=jump
                         TextReader(p,java.io.File(java.io.File(book.source).parentFile,"content"),safeChapter,position,jump,theme,fontSize,scrolling,options.font!="sans",search,book.notes,
                             onPosition={savePosition(safeChapter,it)},onTap={controls=!controls},onSelection={selection=it},
                             onChapter={next -> if(next in p.chapters.indices) { savePosition(next,if(next<safeChapter) 1f else 0f);jump++ } },
                             anchor=anchor,fragment=fragment,lineHeight=effectiveOptions.lineHeight,margin=effectiveOptions.margin,letterSpacing=effectiveOptions.letterSpacing,pageTurn=pageTurn,
                             fontFamily=options.font,boldText=options.bold,wordSpacing=effectiveOptions.wordSpacing,justify=effectiveOptions.justify,customLayout=options.customLayout,
-                            onLocation={progress,at->saveLocated(safeChapter,progress,at)},
+                            onLocation={progress,at->if(jump==readerJump) {saveLocated(safeChapter,progress,at);locationAvailable=true}},
+                            onLoadError={if(jump==readerJump) locationAvailable=false},
                             onSelectionRange={ if(panel?.editsNote != true) {selectedRange=it;selection=it.text} },
-                            onLink={next,target->savePosition(next,0f);fragment=target;jump++},onPages={pages=it})
+                            onLink={next,target->navigate(next,target=target)},onPages={pages=it})
                     }
                 } ?: CircularProgressIndicator(color=Accent)
             }
@@ -185,7 +208,8 @@ import kotlinx.coroutines.CancellationException
     }
     if (controls && book.format != "PDF") {
         Box(Modifier.fillMaxSize().systemBarsPadding()) {
-            TextReaderChrome(theme, chapter, position, pages, scrolling, onClose, { menuOpen = true }, selectionActions)
+            TextReaderChrome(theme, chapter, position, pages, scrolling, onClose, { menuOpen = true }, selectionActions,
+                onReturn=if(history.isEmpty()) null else ::returnToSource,returnEnabled=locationAvailable!=null)
         }
     }
     SnackbarHost(snackbar,Modifier.align(Alignment.BottomCenter).navigationBarsPadding()) }
@@ -199,11 +223,10 @@ import kotlinx.coroutines.CancellationException
             onBookmark = ::toggleBookmark,
             onChapter = { next ->
                 if (next in 0 until (publication?.chapters?.size ?: 0)) {
-                    savePosition(next, 0f); jump++; menuOpen = false
+                    navigate(next); menuOpen = false
                 }
             },
-            onPosition = { position = it },
-            onSeek = { savePosition(chapter, position); jump++; menuOpen = false }
+            onSeek = { navigate(chapter,it); menuOpen = false }
         )
     }
     if(themeOpen) ThemeSettingsPanel(themeIndex,options,fontSize,scrolling,pageTurn,brightness,appearance,book.format=="PDF",
@@ -223,13 +246,13 @@ import kotlinx.coroutines.CancellationException
                             ReaderPanel.Contents -> if (book.format == "PDF") {
                                 PdfContentsPanel(pdfOutline, pdfProblem, { panel = ReaderPanel.GoToPage }) { page -> savePosition(page, 0f); jump++; panel = null }
                             } else ReaderContents(publication?.navigation.orEmpty(), chapter, theme.ink) { entry ->
-                                savePosition(entry.chapter, 0f); fragment = entry.fragment; jump++; panel = null
+                                navigate(entry.chapter,target=entry.fragment); panel = null
                             }
                             ReaderPanel.Bookmarks -> ReaderBookmarks(book.marks,
-                                onNavigate = { mark -> savePosition(mark.chapter, mark.position); saveLocated(mark.chapter, mark.position, mark.anchor); jump++; panel = null },
+                                onNavigate = { mark -> navigate(mark.chapter,mark.position,mark.anchor); panel = null },
                                 onRemove = { mark -> val current = store.current(book.id); store.update(current.copy(marks = current.marks - mark)) })
                             ReaderPanel.Notes -> ReaderNotes(book.notes,
-                                onNavigate = { note -> savePosition(note.chapter, 0f); saveLocated(note.chapter, 0f, note.start); jump++; panel = null },
+                                onNavigate = { note -> navigate(note.chapter,a=note.start); panel = null },
                                 onEdit = { note -> editingNote = note; selection = note.text; selectedRange = SelectedText(note.text, note.start, note.end); noteText = note.note; panel = ReaderPanel.EditNote },
                                 onRemove = { note -> val current = store.current(book.id); store.update(current.copy(notes = current.notes - note)) })
                             else -> Unit
@@ -237,7 +260,7 @@ import kotlinx.coroutines.CancellationException
                     }
                     ReaderPanel.Search -> ReaderSearchPanel(search, results, pdfHits, searching, searchProblem ?: if (book.format == "PDF") pdfProblem else null,
                         onQuery = { search = it },
-                        onResult = { next -> keyboard?.hide(); savePosition(next, 0f); jump++; panel = null },
+                        onResult = { next -> keyboard?.hide(); navigate(next); panel = null },
                         onPdfHit = { hit -> keyboard?.hide(); savePosition(hit.page, 0f); pdfHit = hit; jump++; panel = null })
                     ReaderPanel.GoToPage -> ReaderPageJump(pdfService?.pageCount) { page -> keyboard?.hide(); savePosition(page, 0f); jump++; panel = null }
                     ReaderPanel.AddNote,ReaderPanel.EditNote -> {

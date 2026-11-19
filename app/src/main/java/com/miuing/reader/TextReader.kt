@@ -56,7 +56,7 @@ internal fun loadReaderScript(context:android.content.Context):String =
     fontFamily:String=if(serif) "serif" else "sans",boldText:Boolean=theme.name=="粗体",wordSpacing:Float=0f,justify:Boolean=false,customLayout:Boolean=true,
     onLocation:(Float,Int)->Unit={p,_->onPosition(p)},
     onSelectionRange:(SelectedText)->Unit={onSelection(it.text)},onLink:(Int,String)->Unit={i,_->onChapter(i)},
-    onPages:(ReaderPageInfo)->Unit={}
+    onPages:(ReaderPageInfo)->Unit={},onLoadError:()->Unit={}
 ) {
     val context=androidx.compose.ui.platform.LocalContext.current
     val latestLocation by rememberUpdatedState(onLocation)
@@ -65,6 +65,7 @@ internal fun loadReaderScript(context:android.content.Context):String =
     val latestChapter by rememberUpdatedState(onChapter)
     val latestLink by rememberUpdatedState(onLink)
     val latestPages by rememberUpdatedState(onPages)
+    val latestLoadError by rememberUpdatedState(onLoadError)
     val path=publication.chapters[chapter].path.toFile()
     var html by remember(path) { mutableStateOf<String?>(null) }
     var readError by remember(path) { mutableStateOf<String?>(null) }
@@ -73,7 +74,10 @@ internal fun loadReaderScript(context:android.content.Context):String =
         try { html=withContext(Dispatchers.IO) { PublicationParser.readMarkup(path.toPath()) } }
         catch(e:java.io.IOException) { readError=e.localizedMessage ?: "章节读取失败" }
     }
-    if(readError!=null) { Text("无法读取此章节：$readError");return }
+    if(readError!=null) {
+        LaunchedEffect(path,jump,scrolling) {latestLoadError()}
+        Text("无法读取此章节：$readError");return
+    }
     val loader=remember(root) { WebViewAssetLoader.Builder().addPathHandler("/book/",WebViewAssetLoader.InternalStoragePathHandler(context,root)).build() }
     val bridge:ReadingBridge=remember(path,jump,scrolling) { ReadingBridge({p,a->latestLocation(p,a)},{latestTap()},{latestSelection(it)},{latestChapter(chapter+it)},{latestPages(it)}) }
     val webResult=remember(path,jump,scrolling) { runCatching { WebView(context).apply {
@@ -88,7 +92,10 @@ internal fun loadReaderScript(context:android.content.Context):String =
         attachReadingBridge(this,bridge)
     } } }
     val web=webResult.getOrNull()
-    if(web==null) {Text("系统网页组件不可用，请启用或更新 Android System WebView。");return}
+    if(web==null) {
+        LaunchedEffect(path,jump,scrolling) {latestLoadError()}
+        Text("系统网页组件不可用，请启用或更新 Android System WebView。");return
+    }
     val overlay=remember(web) {PageTurnOverlay(context)}
     val initial=remember(web) { Triple(position,anchor,fragment) }
     val configuration=JSONObject().apply {

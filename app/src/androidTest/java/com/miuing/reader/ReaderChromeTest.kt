@@ -238,6 +238,8 @@ class ReaderChromeTest {
         screenshot(scenario, "bookmark-restored.png")
         val restored = js(scenario, "window.miuingAnchor()").toInt()
         assertTrue("Bookmark did not return to the selected passage: saved=${saved.anchor}, restored=$restored", kotlin.math.abs(restored - saved.anchor) <= 5)
+        action("返回跳转前位置").click()
+        await(scenario, "!!window.miuingConfig && window.miuingConfig.position===0")
     }
 
     @Test fun nativePageStatusTracksEndpointsAndFontReflow() = reader { scenario, _, _ ->
@@ -271,5 +273,112 @@ class ReaderChromeTest {
         device.pressBack()
         text(book.title)
         assertNull("Back did not return to the library", device.findObject(By.desc("阅读菜单")))
+    }
+
+    @Test fun deliberateJumpsReturnThroughHistoryAfterRecreation() = reader { scenario, _, book ->
+        js(scenario, "window.miuingJump(.35)")
+        await(scenario, "window.miuingProgress()>.2")
+        Thread.sleep(250)
+        val origin = LibraryStore(instrumentation.targetContext).current(book.id).anchor
+        val viewport = js(scenario, "JSON.stringify([window.miuingWidth,window.miuingHeight])")
+        assertTrue(origin > 100)
+        assertNull("Ordinary movement added history", device.findObject(By.desc("返回跳转前位置")))
+        device.openReaderThemes()
+        action("增大字号").click()
+        action("关闭主题与设置").click()
+        assertNull("Typography added navigation history", device.findObject(By.desc("返回跳转前位置")))
+        action("阅读菜单").click()
+        action("下一章").click()
+        await(scenario, "!!document.getElementById('chapter1') && !!window.miuingConfig")
+        js(scenario, "window.miuingJump(.3)")
+        Thread.sleep(250)
+        val second = LibraryStore(instrumentation.targetContext).current(book.id).anchor
+        action("阅读菜单").click()
+        action("目录与书签").click()
+        text("第一章").click()
+        await(scenario, "!!document.getElementById('chapter0') && !!window.miuingConfig")
+        action("返回跳转前位置").click()
+        await(scenario, "!!document.getElementById('chapter1') && !!window.miuingConfig && window.miuingConfig.anchor===$second")
+        scenario.recreate()
+        await(scenario, "!!document.getElementById('chapter1') && !!window.miuingConfig")
+        action("返回跳转前位置").click()
+        await(scenario, "!!document.getElementById('chapter0') && !!window.miuingConfig && window.miuingConfig.anchor===$origin")
+        assertEquals(viewport, js(scenario, "JSON.stringify([window.miuingWidth,window.miuingHeight])"))
+        assertTrue(device.wait(Until.gone(By.desc("返回跳转前位置")), 5000))
+        action("阅读菜单").click()
+        action("下一章").click()
+        await(scenario, "!!document.getElementById('chapter1') && !!window.miuingConfig")
+        action("返回书库").click()
+        text(book.title).click()
+        await(scenario, "!!window.miuingConfig")
+        assertNull("Reopening the book inherited session history", device.findObject(By.desc("返回跳转前位置")))
+    }
+
+    @Test fun seekReturnsToThePassageBeforeSliderPreview() = reader { scenario, _, book ->
+        js(scenario, "window.miuingJump(.25)")
+        Thread.sleep(300)
+        val origin = LibraryStore(instrumentation.targetContext).current(book.id).anchor
+        assertTrue(origin > 100)
+        action("阅读菜单").click()
+        val slider = action("阅读进度").visibleBounds
+        device.click(slider.left + slider.width() * 75 / 100, slider.centerY())
+        await(scenario, "window.miuingProgress()>.5")
+        screenshot(scenario, "text-reader-history.png")
+        action("返回跳转前位置").click()
+        await(scenario, "!!window.miuingConfig && window.miuingConfig.anchor===$origin")
+        Thread.sleep(250)
+        assertEquals(origin, LibraryStore(instrumentation.targetContext).current(book.id).anchor)
+        assertTrue(device.wait(Until.gone(By.desc("返回跳转前位置")), 5000))
+    }
+
+    @Test fun unreadableChapterStillAllowsReturnToTheSource() = reader { scenario, _, book ->
+        js(scenario, "window.miuingJump(.3)")
+        Thread.sleep(300)
+        val origin = LibraryStore(instrumentation.targetContext).current(book.id).anchor
+        val chapterFile = File(File(book.source).parentFile, "content/b.xhtml")
+        assertTrue("Fixture chapter was not extracted", chapterFile.delete())
+        action("阅读菜单").click()
+        action("下一章").click()
+        assertNotNull("Chapter error was not displayed", device.wait(Until.findObject(By.textStartsWith("无法读取此章节")), 5000))
+        action("阅读菜单").click()
+        val slider = action("阅读进度").visibleBounds
+        device.click(slider.centerX(), slider.centerY())
+        assertTrue(device.wait(Until.gone(By.desc("关闭阅读菜单")), 5000))
+        device.openReaderThemes()
+        action("翻页样式").click()
+        action("连续滚动").click()
+        action("关闭主题与设置").click()
+        action("返回跳转前位置").click()
+        await(scenario, "!!document.getElementById('chapter0') && !!window.miuingConfig && window.miuingConfig.anchor===$origin")
+        assertTrue(device.wait(Until.gone(By.desc("返回跳转前位置")), 5000))
+    }
+
+    @Test fun linksSearchAndNotesShareTheReturnPath() = reader { scenario, _, book ->
+        js(scenario, "window.miuingJump(.2)")
+        Thread.sleep(300)
+        val origin = LibraryStore(instrumentation.targetContext).current(book.id).anchor
+        js(scenario, "(()=>{const link=document.createElement('a');link.href='b.xhtml#chapter1';document.getElementById('miuing-content').appendChild(link);link.click()})()")
+        await(scenario, "!!document.getElementById('chapter1') && !!window.miuingConfig")
+        action("返回跳转前位置").click()
+        await(scenario, "!!document.getElementById('chapter0') && !!window.miuingConfig && window.miuingConfig.anchor===$origin")
+        action("阅读菜单").click()
+        action("在图书中搜索").click()
+        device.wait(Until.findObject(By.clazz("android.widget.EditText")), 5000)!!.text = "needle"
+        device.wait(Until.findObject(By.textContains("A readable needle")), 5000)!!.click()
+        await(scenario, "!!window.miuingConfig && window.miuingConfig.position===0")
+        action("返回跳转前位置").click()
+        await(scenario, "!!window.miuingConfig && window.miuingConfig.anchor===$origin")
+        js(scenario, "(()=>{const p=document.querySelector('#miuing-content p'),range=document.createRange();range.setStart(p.firstChild,0);range.setEnd(p.firstChild,3);getSelection().removeAllRanges();getSelection().addRange(range);document.dispatchEvent(new Event('selectionchange'))})()")
+        text("高亮标记").click()
+        val note = LibraryStore(instrumentation.targetContext).current(book.id).notes.single()
+        js(scenario, "getSelection().removeAllRanges();window.miuingJump(.6)")
+        Thread.sleep(300)
+        val noteOrigin = LibraryStore(instrumentation.targetContext).current(book.id).anchor
+        action("阅读菜单").click()
+        action("高亮标记和笔记").click()
+        text("前往原文").click()
+        await(scenario, "!!window.miuingConfig && window.miuingConfig.anchor===${note.start}")
+        action("返回跳转前位置").click()
+        await(scenario, "!!window.miuingConfig && window.miuingConfig.anchor===$noteOrigin")
     }
 }
