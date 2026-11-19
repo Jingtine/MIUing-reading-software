@@ -27,7 +27,7 @@ class ReaderInitialLayoutTest {
     }
     @SuppressLint("SetJavaScriptEnabled")
     private fun initial(fragment:String,position:Float,assertion:(WebView)->Unit) {
-        val script=instrument.targetContext.assets.open("reader.js").bufferedReader().use {it.readText()}
+        val script=loadReaderScript(instrument.targetContext)
         val first=JSONObject().put("paper","#ffffff").put("ink","#222222").put("width",360).put("height",500).put("fontSize",20)
             .put("margin",24).put("scrolling",true).put("serif",true).put("lineHeight",1.85).put("letterSpacing",0)
             .put("anchor",-1).put("fragment",fragment).put("position",position)

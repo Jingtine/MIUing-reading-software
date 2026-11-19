@@ -44,7 +44,7 @@ class ReaderFontMetricsTest {
 
     @SuppressLint("SetJavaScriptEnabled")
     @Test fun latePublisherFontRefreshesPageCountWithoutWritingReadingProgress() {
-        val script = instrument.targetContext.assets.open("reader.js").bufferedReader().use { it.readText() }
+        val script = loadReaderScript(instrument.targetContext)
         val requested = CountDownLatch(1)
         val release = CountDownLatch(1)
         val bridge = Bridge()

@@ -5,43 +5,14 @@
   let retainedAnchor = -1, layoutRevision = 0;
   let hasPosition = false, pendingInitial = null;
   const publisherTextStyles = new Map();
-  function textNodes() {
-    const walker = document.createTreeWalker(flow, NodeFilter.SHOW_TEXT);
-    const result = []; let node, offset = 0;
-    while ((node = walker.nextNode())) {
-      if (node.parentElement.closest('script,style,noscript')) continue;
-      result.push({ node, offset }); offset += node.length;
-    }
-    return result;
-  }
-  function offsetOf(node, offset) {
-    const entry = textNodes().find(e => e.node === node);
-    if (entry) return entry.offset + offset;
-    // Range endpoints can be elements rather than text nodes.
-    const prefix = document.createRange(); prefix.selectNodeContents(flow);
-    try {
-      prefix.setEnd(node, offset);
-      const content=prefix.cloneContents();
-      content.querySelectorAll('script,style,noscript').forEach(e=>e.remove());
-      return content.textContent.length;
-    }
-    catch (_) { return -1; }
-  }
-  function rangeAt(offset) {
-    const nodes=textNodes();
-    for (const e of nodes) if (offset < e.offset + e.node.length || (e===nodes[nodes.length-1] && offset===e.offset+e.node.length)) {
-      const range = document.createRange();
-      range.setStart(e.node, Math.max(0, offset - e.offset)); range.collapse(true); return range;
-    }
-    return null;
-  }
+  let textIndex;
   window.miuingAnchor = () => {
     if (!shell) return -1;
     const box = shell.getBoundingClientRect(), step = Math.max(12, config.fontSize);
     for (let y = config.margin + 4; y < config.height - config.margin; y += step) {
       const caret = document.caretRangeFromPoint(box.left + config.margin + 3, box.top + y);
       if (caret && flow.contains(caret.startContainer) && caret.startContainer.nodeType === Node.TEXT_NODE)
-        return offsetOf(caret.startContainer, caret.startOffset);
+        return textIndex.offsetOf(caret.startContainer, caret.startOffset);
     }
     return -1;
   };
@@ -62,7 +33,7 @@
     else shell.scrollLeft = Math.max(0, Math.floor((rect.left - box.left + shell.scrollLeft - config.margin + 1) / config.width) * config.width);
   }
   function jumpAnchor(offset) {
-    const range=rangeAt(offset);
+    const range=textIndex.rangeAt(offset);
     if(!range) return;
     // At a column boundary a collapsed caret can belong to the preceding
     // line. Measure the actual character to select its visible page instead.
@@ -82,25 +53,6 @@
     MIUing.progress(window.miuingProgress(), retainedAnchor>=0?retainedAnchor:window.miuingAnchor());
     publishPages();
   }
-  function highlights(notes) {
-    flow.querySelectorAll('mark[data-miuing]').forEach(mark => mark.replaceWith(...mark.childNodes));
-    flow.normalize();
-    for (const note of notes) {
-      let start = note.start, end = note.end;
-      const nodes = textNodes();
-      if (!(start >= 0 && end > start)) {
-        const text = nodes.map(e => e.node.data).join(''); start = text.indexOf(note.text); end = start + note.text.length;
-      }
-      if (start < 0 || end <= start) continue;
-      // Mark text-node slices separately: never move paragraphs inside an inline mark.
-      for (const e of nodes) {
-        const a = Math.max(0, start - e.offset), b = Math.min(e.node.length, end - e.offset);
-        if (a >= b) continue;
-        const range = document.createRange(); range.setStart(e.node, a); range.setEnd(e.node, b);
-        const mark = document.createElement('mark'); mark.dataset.miuing = '1'; range.surroundContents(mark);
-      }
-    }
-  }
   function textStyleOverrides(family, next) {
     // Restore exact publisher attributes before applying the new reader choice.
     for(const [element,style] of publisherTextStyles) {
@@ -109,7 +61,7 @@
     publisherTextStyles.clear();
     if(!family && !next.bold && next.customLayout===false) return;
     const parents=new Set();
-    for(const entry of textNodes()) {
+    for(const entry of textIndex.entries()) {
       if(!entry.node.data.trim() || /^[\s\uE000-\uF8FF\u2000-\u2BFF]+$/.test(entry.node.data)) continue;
       const first=entry.node.parentElement;
       if(first.closest('svg,math,pre,code,kbd,samp') || /symbol|icon|dingbat|wingding|fontawesome/i.test(getComputedStyle(first).fontFamily)) continue;
@@ -129,7 +81,8 @@
     }
   }
   window.miuingConfigure = next => {
-    if (config && JSON.stringify(config) === JSON.stringify(next)) return;
+    const textChanged = textIndex && textIndex.flushChanges();
+    if (config && !textChanged && JSON.stringify(config) === JSON.stringify(next)) return;
     const previous = config && hasPosition ? { anchor: retainedAnchor>=0?retainedAnchor:window.miuingAnchor(), position: window.miuingProgress() } : null;
     if(!config) pendingInitial={anchor:next.anchor>=0?next.anchor:-1,fragment:next.fragment || '',position:next.position || 0};
     const destination=previous || pendingInitial || {anchor:-1,position:0,fragment:''};
@@ -141,6 +94,7 @@
     if (!flow) {
       flow = document.createElement('main'); flow.id = 'miuing-content';
       while (document.body.firstChild) flow.appendChild(document.body.firstChild);
+      textIndex = new window.MIUingTextIndex(flow);
       shell = document.createElement('div'); shell.id = 'miuing-scroll'; shell.appendChild(flow); document.body.appendChild(shell);
       shell.addEventListener('scroll', () => {if(restoring) return;retainedAnchor=-1;clearTimeout(timer);timer=setTimeout(publish,180);});
     }
@@ -159,7 +113,7 @@
       #miuing-content{box-sizing:content-box;width:${available}px;margin:${m}px;${next.scrolling?`max-width:760px;margin:${m}px auto;padding:0 ${m}px;`:`height:${h-2*m}px;column-width:${column}px;column-gap:${2*m}px;column-fill:auto;`}}
       p{font-size:inherit!important;${next.customLayout===false?'':'line-height:inherit!important;letter-spacing:inherit!important;word-spacing:inherit!important;'}color:inherit!important;${next.justify?'text-align:justify!important;':''}}img,svg{max-width:100%!important;max-height:${h-2*m}px!important;object-fit:contain}mark[data-miuing]{background:#e8ce6c;color:inherit}
     `;
-    highlights(next.notes || []);
+    textIndex.highlights(next.notes || []);
     textStyleOverrides(family,next);
     requestAnimationFrame(() => requestAnimationFrame(() => {
       if(revision!==layoutRevision) return;
@@ -190,7 +144,7 @@
     }
     const range = selection.getRangeAt(0);
     if (!flow || !flow.contains(range.startContainer) || !flow.contains(range.endContainer)) return;
-    MIUing.selection(selection.toString(), offsetOf(range.startContainer, range.startOffset), offsetOf(range.endContainer, range.endOffset));
+    MIUing.selection(selection.toString(), textIndex.offsetOf(range.startContainer, range.startOffset), textIndex.offsetOf(range.endContainer, range.endOffset));
   });
   window.miuingAdvance = direction => {
     if (!config || config.scrolling || getSelection().toString()) return;

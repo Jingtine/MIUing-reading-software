@@ -42,6 +42,11 @@ private fun attachReadingBridge(view:WebView,bridge:ReadingBridge) {
     view.addJavascriptInterface(bridge,"MIUing")
 }
 
+internal fun loadReaderScript(context:android.content.Context):String =
+    listOf("reader-text.js","reader.js").joinToString("\n") { asset ->
+        context.assets.open(asset).bufferedReader().use { it.readText() }
+    }
+
 @SuppressLint("SetJavaScriptEnabled")
 @Composable fun TextReader(
     publication:Publication,root:File,chapter:Int,position:Float,jump:Int,theme:ReadingTheme,fontSize:Float,
@@ -63,7 +68,7 @@ private fun attachReadingBridge(view:WebView,bridge:ReadingBridge) {
     val path=publication.chapters[chapter].path.toFile()
     var html by remember(path) { mutableStateOf<String?>(null) }
     var readError by remember(path) { mutableStateOf<String?>(null) }
-    val applicationScript=remember { context.assets.open("reader.js").bufferedReader().use { it.readText() } }
+    val applicationScript=remember(context) { loadReaderScript(context) }
     LaunchedEffect(path) {
         try { html=withContext(Dispatchers.IO) { PublicationParser.readMarkup(path.toPath()) } }
         catch(e:java.io.IOException) { readError=e.localizedMessage ?: "章节读取失败" }
@@ -99,7 +104,7 @@ private fun attachReadingBridge(view:WebView,bridge:ReadingBridge) {
         val config=JSONObject(configuration)
         val density=view.resources.displayMetrics.density
         config.put("width",view.width/density);config.put("height",view.height/density)
-        return applicationScript+"\nwindow.miuingConfigure($config);"
+        return "window.miuingConfigure($config);"
     }
     var loaded by remember(web) { mutableStateOf(false) }
     bridge.turnPage={direction->if(loaded) overlay.turn(web,pageTurn,direction,theme.paper.toArgb()) {ready->web.evaluateJavascript("window.miuingAdvance($direction)") {ready()}}}
@@ -128,7 +133,7 @@ private fun attachReadingBridge(view:WebView,bridge:ReadingBridge) {
                     }
                     return true
                 }
-                override fun onPageFinished(v:WebView,url:String) { loaded=true;v.evaluateJavascript(script(v),null) }
+                override fun onPageFinished(v:WebView,url:String) { loaded=true;v.evaluateJavascript(applicationScript+"\n"+script(v),null) }
             }
             val base="https://appassets.androidplatform.net/book/"+root.toPath().relativize(path.parentFile!!.toPath()).toString().replace('\\','/').let { if(it.isEmpty()) "" else "$it/" }
             val csp="<meta name='viewport' content='width=device-width,initial-scale=1.0'><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'none'; connect-src 'none'\">"
