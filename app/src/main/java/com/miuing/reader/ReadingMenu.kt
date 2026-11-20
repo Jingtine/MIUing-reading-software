@@ -53,6 +53,7 @@ fun ReadingMenu(
                 Column(Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(title, Modifier.weight(1f), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        IconButton(onClick = { onPanel(ReaderPanel.ReadingOptions) }) { Icon(Icons.Default.Settings, "阅读设置") }
                         IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "关闭阅读菜单") }
                     }
                     Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {

@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.edit
 import com.miuing.core.Publication
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -74,6 +75,7 @@ import kotlinx.coroutines.CancellationException
     }
     DisposableEffect(initial.id) {onDispose {pdfService?.close()}}
     val preferences=remember { context.getSharedPreferences("reading",0) }
+    var extendSleep by rememberSaveable { mutableStateOf(preferences.getBoolean("extendSleep",true)) }
     var themeIndex by rememberSaveable { mutableIntStateOf(preferences.getInt("theme",0).coerceIn(0,5)) }
     var fontSize by rememberSaveable { mutableFloatStateOf(preferences.getFloat("size",20f)) }
     var scrolling by rememberSaveable { mutableStateOf(preferences.getBoolean("scroll",false)) }
@@ -160,7 +162,7 @@ import kotlinx.coroutines.CancellationException
                     }) {Text("拷贝")}
                 }
     }
-    Box(Modifier.fillMaxSize()) { Surface(color=theme.paper,contentColor=theme.ink) {
+    Box(Modifier.fillMaxSize().readingSleep(extendSleep && book.format!="PDF",Triple(menuOpen,themeOpen,panel))) { Surface(color=theme.paper,contentColor=theme.ink) {
         Column(Modifier.fillMaxSize().systemBarsPadding()) {
             if(controls && book.format=="PDF") Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
                 IconButton(onClick=onClose) { Icon(Icons.Default.Close,"返回书库") }
@@ -241,6 +243,7 @@ import kotlinx.coroutines.CancellationException
             Column(Modifier.fillMaxWidth().padding(horizontal=24.dp).navigationBarsPadding()) {
                 Text(title.title,fontSize=23.sp,modifier=Modifier.padding(bottom=20.dp))
                 when(title) {
+                    ReaderPanel.ReadingOptions -> ReadingSleepPanel(extendSleep) { extendSleep=it;preferences.edit { putBoolean("extendSleep",it) } }
                     ReaderPanel.Contents,ReaderPanel.Bookmarks,ReaderPanel.Notes -> {
                         Row { listOf(ReaderPanel.Contents,ReaderPanel.Bookmarks,ReaderPanel.Notes).forEach { TextButton(onClick={panel=it}) { Text(it.title,fontSize=12.sp) } } }
                         when (title) {

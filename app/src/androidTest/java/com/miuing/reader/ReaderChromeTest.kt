@@ -36,6 +36,42 @@ class ReaderChromeTest {
         return null
     }
 
+    private fun keepsScreenOn(view: View): Boolean = view.keepScreenOn ||
+        (view is ViewGroup && (0 until view.childCount).any { keepsScreenOn(view.getChildAt(it)) })
+
+    @Test fun readingSleepSettingPersistsAndReleasesOutsideReading() = reader { scenario, _, book ->
+        fun assertAwake(expected: Boolean) {
+            val deadline = System.currentTimeMillis() + 5000
+            var actual = !expected
+            while (actual != expected && System.currentTimeMillis() < deadline) {
+                scenario.onActivity { actual = keepsScreenOn(it.window.decorView) }
+                if (actual != expected) Thread.sleep(40)
+            }
+            assertEquals(expected, actual)
+        }
+        assertAwake(true)
+        action("阅读菜单").click()
+        action("阅读设置").click()
+        screenshot(scenario,"reading-sleep-settings.png")
+        action("阅读时延长亮屏").click()
+        assertAwake(false)
+        scenario.onActivity { assertFalse(it.getSharedPreferences("reading",0).getBoolean("extendSleep",true)) }
+        scenario.recreate()
+        await(scenario,"!!window.miuingConfig")
+        assertAwake(false)
+        action("阅读菜单").click(); action("阅读设置").click()
+        action("阅读时延长亮屏").click()
+        device.pressBack()
+        assertAwake(true)
+        scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+        assertAwake(false)
+        scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+        assertAwake(true)
+        action("返回书库").click()
+        text(book.title)
+        assertAwake(false)
+    }
+
     private fun js(scenario: ActivityScenario<MainActivity>, code: String): String {
         val done = CountDownLatch(1)
         var result = ""
