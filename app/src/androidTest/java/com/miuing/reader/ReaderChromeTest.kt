@@ -50,7 +50,7 @@ class ReaderChromeTest {
             if (runCatching { js(scenario, condition) == "true" }.getOrDefault(false)) return
             Thread.sleep(80)
         }
-        fail("Reader condition timed out: $condition")
+        fail("Reader condition timed out: $condition; state=" + runCatching { js(scenario, "JSON.stringify({config:window.miuingConfig,progress:window.miuingConfig?window.miuingProgress():null,hit:!!document.querySelector('[data-miuing-search]')})") }.getOrDefault("unavailable"))
     }
 
     private fun action(description: String) = device.wait(Until.findObject(By.desc(description)), 5000)
@@ -59,6 +59,23 @@ class ReaderChromeTest {
     private fun text(value: String) = device.wait(Until.findObject(By.text(value)), 5000)
         ?: throw AssertionError("Missing text: $value")
 
+    private fun clickSearchResult(chapter: Int = 0) {
+        val selector = By.desc("文字搜索结果 第 ${chapter + 1} 章")
+        val deadline = System.currentTimeMillis() + 10000
+        while (System.currentTimeMillis() < deadline) {
+            device.waitForIdle()
+            try {
+                val result = device.findObject(selector)
+                if (result != null) {
+                    result.parent.click()
+                    // Verify delivery; IME/layout transitions can consume a tap.
+                    if (device.wait(Until.gone(selector), 700)) return
+                }
+            } catch (_: androidx.test.uiautomator.StaleObjectException) { }
+            Thread.sleep(50)
+        }
+        fail("Search result could not be selected: chapter $chapter")
+    }
     private fun displayedPages(): Pair<Int, Int> {
         val label = device.wait(Until.findObject(By.descStartsWith("本章第 ")), 5000)?.contentDescription
             ?: throw AssertionError("Missing native page status")
@@ -114,7 +131,7 @@ class ReaderChromeTest {
             )
             listOf("a", "b").forEachIndexed { chapter, name ->
                 entries["$name.xhtml"] = "<html><body><h1 id='chapter$chapter'>Chapter $chapter</h1>" +
-                    (0..140).joinToString("") { "<p id='p$it'>第${it}段。A readable needle in the chapter. 阅读控件应该浮在正文上方，显示和隐藏均保持原文位置。${if(it==100) "<span>定位${chapter} [<em>A+B</em>] &amp; 😀</span>" else ""}</p>" } + "</body></html>"
+                    (0..140).joinToString("") { "<p id='p$it'>第${it}段。A readable needle in the chapter. 阅读控件应该浮在正文上方，显示和隐藏均保持原文位置。${if(it==100) "<span>定位${chapter} [<em>A+B</em>] &amp; 😀 alpha beta Kelvin</span>" else ""}</p>" } + "</body></html>"
             }
             entries.forEach { (name, content) -> zip.putNextEntry(ZipEntry(name)); zip.write(content.toByteArray()); zip.closeEntry() }
         }
@@ -339,11 +356,15 @@ class ReaderChromeTest {
         action("阅读菜单").click()
         action("在图书中搜索").click()
         device.wait(Until.findObject(By.clazz("android.widget.EditText")), 5000)!!.text = "定位0 [a+b] & 😀"
-        val hit = device.wait(Until.findObject(By.textContains("定位0 [A+B]")), 5000)!!
+        assertNotNull(device.wait(Until.findObject(By.desc("文字搜索结果 第 1 章")), 5000))
         Thread.sleep(300)
         assertEquals("Typing moved the source passage", origin, LibraryStore(instrumentation.targetContext).current(book.id).anchor)
-        hit.click()
+        clickSearchResult()
         await(scenario, "!!window.miuingConfig && !!document.querySelector('[data-miuing-search]')")
+        // Marks are installed synchronously; restoration and the native bridge
+        // publish after animation frames. Wait for the actual saved destination.
+        val savedDeadline = System.currentTimeMillis() + 5000
+        while (LibraryStore(instrumentation.targetContext).current(book.id).anchor != expected && System.currentTimeMillis() < savedDeadline) Thread.sleep(40)
         assertEquals(expected, LibraryStore(instrumentation.targetContext).current(book.id).anchor)
         assertEquals("Search hit is outside the visible page", "true", js(scenario, "(()=>{const r=document.querySelector('[data-miuing-search]').getBoundingClientRect();return r.left>=0 && r.left<window.miuingWidth && r.top>=0 && r.top<window.miuingHeight})()"))
         screenshot(scenario, "text-reader-search.png")
@@ -364,12 +385,35 @@ class ReaderChromeTest {
         action("阅读菜单").click()
         action("在图书中搜索").click()
         device.wait(Until.findObject(By.clazz("android.widget.EditText")), 5000)!!.text = "定位1 [a+b] & 😀"
-        device.wait(Until.findObject(By.textContains("定位1 [A+B]")), 5000)!!.click()
+        clickSearchResult(1)
         await(scenario, "!!document.getElementById('chapter1') && !!window.miuingConfig && window.miuingProgress()>.5")
         action("返回跳转前位置").click()
         await(scenario, "!!document.getElementById('chapter0') && !!window.miuingConfig && window.miuingConfig.anchor===$origin")
         js(scenario, "MIUing.chapter(1)")
         await(scenario, "!!document.getElementById('chapter1') && !!window.miuingConfig && window.miuingProgress()<.1 && !document.querySelector('[data-miuing-search]')")
+    }
+
+    @Test fun searchDiscoveryUsesEquivalentWhitespaceAndUnicodeCase() = reader { scenario, _, book ->
+        js(scenario, "window.miuingJump(.2)")
+        Thread.sleep(300)
+        val origin = LibraryStore(instrumentation.targetContext).current(book.id).anchor
+        for (query in listOf("alpha  beta", "kelvin")) {
+            println("SEARCH_DISCOVERY query=$query")
+            action("阅读菜单").click()
+            action("在图书中搜索").click()
+            device.wait(Until.findObject(By.clazz("android.widget.EditText")), 5000)!!.text = query
+            clickSearchResult()
+            await(scenario, "!!window.miuingConfig && !!document.querySelector('[data-miuing-search]') && window.miuingProgress()>.5")
+            action("返回跳转前位置").click()
+            await(scenario, "!!window.miuingConfig && !document.querySelector('[data-miuing-search]')")
+            // The return target is saved before the new WebView restores it.
+            // Wait through the renderer's three-frame restoration before the next jump.
+            js(scenario, "window.testRestored=false;requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>window.testRestored=true))))")
+            await(scenario, "window.testRestored===true")
+            val deadline = System.currentTimeMillis() + 5000
+            while (LibraryStore(instrumentation.targetContext).current(book.id).anchor != origin && System.currentTimeMillis() < deadline) Thread.sleep(40)
+            assertEquals(origin, LibraryStore(instrumentation.targetContext).current(book.id).anchor)
+        }
     }
 
     @Test fun unreadableChapterStillAllowsReturnToTheSource() = reader { scenario, _, book ->

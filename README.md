@@ -2,7 +2,7 @@
 
 Android 手机与平板离线阅读器，按 Apple Books 的书库组织与阅读体验开发。使用用户提供的猫咪 M 图标。
 
-当前为 **0.6.3 开发版**，主适配 Android 16（编译/目标 API 36），兼容下限 Android 8（API 26）。以 EPUB/TXT 文字阅读为开发重点，以流畅、美观、轻量和接近 Apple Books 的阅读体验为目标。功能与视觉对齐进度见 [对照清单](docs/reference/parity.md)。
+当前为 **0.6.4 开发版**，主适配 Android 16（编译/目标 API 36），兼容下限 Android 8（API 26）。以 EPUB/TXT 文字阅读为开发重点，以流畅、美观、轻量和接近 Apple Books 的阅读体验为目标。功能与视觉对齐进度见 [对照清单](docs/reference/parity.md)。
 
 ## 当前可用
 
@@ -10,6 +10,7 @@ Android 手机与平板离线阅读器，按 Apple Books 的书库组织与阅�
 - 主页继续阅读、书库网格/列表、标题/作者搜索与排序。
 - 欲读清单、已读完、自定义藏书及书籍菜单。
 - EPUB/TXT 翻页与滚动、EPUB3/NCX 层级目录和段落跳转、正文搜索、书签、正文锚点定位。
+- 文字搜索结果定位并临时标出该章首次匹配，输入关键词不移动正文；支持跨行内元素、字面标点、空白与 Unicode 大小写处理，搜索后可返回来源。
 - 文字阅读页使用右上关闭、章节状态与右下阅读菜单；目录、主题、搜索、书签、笔记和章节进度通过菜单进入。工具显隐保持相同正文尺寸和位置，页码按实际本章排版更新。
 - 目录、书签、笔记、搜索、书内链接和菜单跳转后，可通过左下返回按钮逐次回到原文；最多保留当前会话的 20 条来源，旋转或 Activity 重建后继续有效。
 - EPUB/TXT 卷页与快速淡入淡出效果，在“主题与设置”中选择；遵循系统关闭动画设置。向前跨章落在上一章末尾，超长章节按实际距离判断翻页边界。
@@ -36,7 +37,7 @@ $env:JAVA_HOME = '你的 JDK 17 安装路径'
 .\gradlew.bat :core:check :app:assembleDebug :app:lintDebug
 ```
 
-APK：`app/build/outputs/apk/debug/app-debug.apk`，当前约 25.5 MiB。该 APK 使用开发签名，供本地安装测试。
+APK：`app/build/outputs/apk/debug/app-debug.apk`，当前约 25.9 MiB。该 APK 使用开发签名，供本地安装测试。
 
 PDF 搜索入口在阅读页底部；长按文字后可高亮或添加笔记，顶部画笔可进入手写模式，导出按钮通过系统文件选择器保存带批注的副本。扫描 PDF 暂无 OCR。实现与验证记录见 [PDF 0.3 开发记录](docs/pdf-parity-0.3.md)。
 
@@ -52,6 +53,8 @@ Android16 主适配与分页边界书签修复见 [0.6.1 开发记录](docs/andr
 文字索引、高亮计算与受控测量见 [0.6.2 优化记录](docs/text-engine-0.6.2.md)。
 
 跳转返回、滑块预览与错误恢复见 [0.6.3 开发记录](docs/reading-history-0.6.3.md)。
+
+文字搜索结果定位与临时标记见 [0.6.4 开发记录](docs/search-location-0.6.4.md)。
 
 本工作区额外在 `.tools` 中下载了 Gradle 与 Android SDK，均不纳入版本控制。若官方 Gradle 下载受网络限制，可使用本机已校验的 `.tools/gradle-8.13/bin/gradle.bat` 运行同样的任务。
 

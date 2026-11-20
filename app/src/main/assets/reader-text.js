@@ -90,10 +90,50 @@
       if (!query || !query.trim()) return null;
       // Escape each literal part, allowing equivalent HTML whitespace without
       // changing the UTF-16 offsets returned by the actual DOM text match.
-      const pattern = query.trim().split(/\s+/).map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
-      const text = this.entries().map(entry => entry.node.data).join('');
-      const match = new RegExp(pattern, 'i').exec(text);
-      return match ? { start: match.index, end: match.index + match[0].length } : null;
+      const pattern = query.toLowerCase().trim().split(/\s+/).map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+      this.entries();
+      const walker = document.createTreeWalker(this.root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+      const groups = new WeakMap(), chunks = [], parts = [];
+      const block = element => {
+        if (!element || element === this.root) return this.root;
+        if (groups.has(element)) return groups.get(element);
+        const display = getComputedStyle(element).display;
+        const result = display === 'none' ? null : /^(block|list-item|table|flex|grid|flow-root)/.test(display) ? element : block(element.parentElement);
+        groups.set(element, result); return result;
+      };
+      let node, previous = null, length = 0, broken = false;
+      while ((node = walker.nextNode())) {
+        if (node.nodeType === Node.ELEMENT_NODE) { if (node.tagName === 'BR') broken = true; continue; }
+        const offset = this.offsets.get(node), group = block(node.parentElement);
+        if (offset === undefined || !group || !node.length) continue;
+        if (parts.length && (broken || previous !== group)) { parts.push('\n'); length++; }
+        chunks.push({ at: length, offset, text: node.data });
+        parts.push(node.data); length += node.length; previous = group; broken = false;
+      }
+      const text = parts.join(''), folded = text.toLowerCase();
+      const match = new RegExp(pattern).exec(folded);
+      if (!match) return null;
+      // Most lowercasing preserves UTF-16 length. Handle expansions (e.g. İ)
+      // without letting search-string offsets leak into stored DOM anchors.
+      const originalOffset = (offset, end) => {
+        if (text.length === folded.length) return offset;
+        let plain = 0, lower = 0;
+        for (const character of text) {
+          const next = lower + character.toLowerCase().length;
+          if (offset < next) return plain + (end && offset > lower ? character.length : 0);
+          plain += character.length; lower = next;
+        }
+        return plain;
+      };
+      const start = originalOffset(match.index, false), end = originalOffset(match.index + match[0].length, true);
+      const domOffset = (offset, isEnd) => {
+        for (let i = 0; i < chunks.length; i++) {
+          const chunk = chunks[i], limit = chunk.at + chunk.text.length;
+          if (offset < limit || (isEnd && offset === limit)) return chunk.offset + Math.max(0, offset - chunk.at);
+        }
+        const last = chunks[chunks.length - 1]; return last.offset + last.text.length;
+      };
+      return { start: domOffset(start, false), end: domOffset(end, true) };
     }
 
     highlights(notes, query = '') {

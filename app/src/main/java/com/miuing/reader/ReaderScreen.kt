@@ -106,8 +106,7 @@ import kotlinx.coroutines.CancellationException
                 else results=withContext(Dispatchers.IO) {publication!!.chapters.mapIndexedNotNull { i,c ->
                     val markup=com.miuing.core.PublicationParser.readMarkup(c.path)
                     val plain=android.text.Html.fromHtml(markup,android.text.Html.FROM_HTML_MODE_LEGACY).toString()
-                    val at=plain.indexOf(search,ignoreCase=true)
-                    if(at<0) null else i to plain.substring((at-30).coerceAtLeast(0),(at+search.length+75).coerceAtMost(plain.length)).trim()
+                    textSearchSnippet(plain,search)?.let { i to it }
                 }.take(50)}
             } catch(e:CancellationException) {throw e} catch(e:Exception) {searchProblem=e.localizedMessage ?: "搜索失败"}
             finally {searching=false}

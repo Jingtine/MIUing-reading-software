@@ -96,6 +96,18 @@ class ReaderEngineTest {
         })()
     """.trimIndent()
 
+    @Test fun searchRespectsBlockBreaksAndUnicodeCase() = reader(2) { view, _ ->
+        js(view, "document.getElementById('miuing-content').innerHTML='<p>ab</p><p>cd</p><p id=real>abcd</p><p>xy<br>zw</p><p id=unicode>Kelvin İSTANBUL</p>'")
+        configure(view, "{search:'abcd'}")
+        assertEquals("Search matched a word assembled across paragraphs", "true", js(view, "!!document.querySelector('#real [data-miuing-search]') && document.querySelectorAll('[data-miuing-search]').length===1"))
+        configure(view, "{search:'xyzw'}")
+        assertEquals("Search joined across a visible line break", "true", js(view, "!document.querySelector('[data-miuing-search]')"))
+        configure(view, "{search:'kelvin'}")
+        assertEquals("Unicode case missed Kelvin sign", "true", js(view, "document.querySelector('[data-miuing-search]').textContent==='Kelvin'"))
+        configure(view, "{search:'i̇stanbul'}")
+        assertEquals("Case expansion changed DOM range boundaries", "true", js(view, "document.querySelector('[data-miuing-search]').textContent==='İSTANBUL'"))
+    }
+
     @Test fun selectedSearchLocatesLiteralCrossInlineTextAndComposesNotes() = reader(150, searchSetup,
         "{search:'mixed [a+b] & 😀',notes:[{start:window.searchStart+2,end:window.searchStart+14,text:'overlap'}]}") { view, _ ->
         assertEquals("Selected search did not move beyond the chapter start", "true", js(view, "window.miuingProgress()>.5"))

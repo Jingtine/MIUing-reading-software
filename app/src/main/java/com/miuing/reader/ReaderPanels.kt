@@ -86,7 +86,7 @@ fun ReaderSearchPanel(
         items(pdfHits) { hit ->
             TextButton(onClick = { onPdfHit(hit) }, modifier = Modifier.semantics { contentDescription = "PDF 搜索结果 第 ${hit.page + 1} 页" }) { Text("第 ${hit.page + 1} 页 · ${hit.snippet}") }
         }
-        items(results) { result -> TextButton(onClick = { onResult(result.first) }) { Text(result.second) } }
+        items(results) { result -> TextButton(onClick = { onResult(result.first) }, modifier = Modifier.semantics { contentDescription = "文字搜索结果 第 ${result.first + 1} 章" }) { Text(result.second) } }
         if (searching) item { CircularProgressIndicator(Modifier.padding(16.dp)) }
         if (problem != null) item { Text(problem, Modifier.padding(vertical = 16.dp)) }
         else if (!searching && query.isNotBlank() && results.isEmpty() && pdfHits.isEmpty()) item { Text("没有找到匹配内容", Modifier.padding(vertical = 20.dp)) }
