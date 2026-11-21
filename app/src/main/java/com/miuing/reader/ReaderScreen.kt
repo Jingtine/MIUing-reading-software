@@ -16,6 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.content.edit
 import com.miuing.core.Publication
 import kotlinx.coroutines.Dispatchers
@@ -95,6 +97,7 @@ import kotlinx.coroutines.CancellationException
         onDispose { window?.attributes=window?.attributes?.apply { screenBrightness=original } }
     }
     val theme=readingTheme(themeIndex,appearance,isSystemInDarkTheme())
+    ReadingSystemBars(window,theme.paper)
     LaunchedEffect(initial.id) {
         try { publication=withContext(Dispatchers.IO) { store.open(initial) } }
         catch(e:Exception) { error=e.localizedMessage ?: "无法打开图书" }
@@ -212,7 +215,8 @@ import kotlinx.coroutines.CancellationException
     if (controls && book.format != "PDF") {
         Box(Modifier.fillMaxSize().systemBarsPadding()) {
             TextReaderChrome(theme, chapter, position, pages, scrolling, onClose, { menuOpen = true }, selectionActions,
-                onReturn=if(history.isEmpty()) null else ::returnToSource,returnEnabled=locationAvailable!=null)
+                onReturn=if(history.isEmpty()) null else ::returnToSource,returnEnabled=locationAvailable!=null,
+                returnLabel=history.lastOrNull()?.let { "第 ${it.chapter+1} 章" } ?: "返回")
         }
     }
     SnackbarHost(snackbar,Modifier.align(Alignment.BottomCenter).navigationBarsPadding()) }
@@ -240,6 +244,7 @@ import kotlinx.coroutines.CancellationException
             if(panel?.editsNote == true) {selection="";selectedRange=SelectedText();editingNote=null;noteText=""}
             panel=null
         },containerColor=theme.paper,contentColor=theme.ink) {
+            ReadingSystemBars((LocalView.current.parent as? DialogWindowProvider)?.window,theme.paper)
             Column(Modifier.fillMaxWidth().padding(horizontal=24.dp).navigationBarsPadding()) {
                 Text(title.title,fontSize=23.sp,modifier=Modifier.padding(bottom=20.dp))
                 when(title) {

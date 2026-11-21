@@ -88,6 +88,7 @@ internal fun loadReaderScript(context:android.content.Context):String =
         settings.javaScriptEnabled=true;settings.allowFileAccess=false;settings.allowContentAccess=false
         settings.blockNetworkLoads=true;settings.domStorageEnabled=false
         settings.useWideViewPort=true;settings.loadWithOverviewMode=false
+        settings.standardFontFamily="serif"
         isVerticalScrollBarEnabled=false;isHorizontalScrollBarEnabled=false
         attachReadingBridge(this,bridge)
     } } }

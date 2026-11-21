@@ -64,6 +64,7 @@ import kotlinx.coroutines.launch
     }}
     Dialog(onDismissRequest=dismiss,properties=DialogProperties(usePlatformDefaultWidth=false,decorFitsSystemWindows=false)) {
         val window=(LocalView.current.parent as? DialogWindowProvider)?.window
+        ReadingSystemBars(window,readingTheme(themeIndex,appearance,isSystemInDarkTheme()).paper,paper)
         SideEffect {window?.setDimAmount(.12f);window?.attributes=window?.attributes?.apply {screenBrightness=brightness}}
         BoxWithConstraints(Modifier.fillMaxSize().systemBarsPadding()) {
             val wide=maxWidth>=700.dp

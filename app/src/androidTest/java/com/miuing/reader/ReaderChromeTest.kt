@@ -6,6 +6,9 @@ import android.graphics.Color
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
+import androidx.core.view.WindowCompat
+import androidx.core.graphics.ColorUtils
+import androidx.compose.ui.graphics.toArgb
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -153,7 +156,7 @@ class ReaderChromeTest {
         } finally { bitmap.recycle() }
     }
 
-    private fun reader(block: (ActivityScenario<MainActivity>, LibraryStore, Book) -> Unit) = runBlocking {
+    private fun reader(beforeOpen: (ActivityScenario<MainActivity>) -> Unit = {}, block: (ActivityScenario<MainActivity>, LibraryStore, Book) -> Unit) = runBlocking {
         val context = instrumentation.targetContext
         val preferences = context.getSharedPreferences("reading", 0)
         preferences.edit().clear().commit()
@@ -176,14 +179,66 @@ class ReaderChromeTest {
         try {
             book = store.import(Uri.fromFile(file))
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                beforeOpen(scenario)
                 text(title).click()
                 await(scenario, "!!window.miuingConfig")
+                js(scenario,"window.fixtureReady=false;(document.fonts?document.fonts.ready:Promise.resolve()).then(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>window.fixtureReady=true)))))")
+                await(scenario,"window.fixtureReady===true")
                 block(scenario, store, book)
             }
         } finally {
             book?.let { store.delete(it.id) }
             file.delete()
             preferences.edit().clear().commit()
+        }
+    }
+
+    @Test fun statusTextHasReadableContrastInEveryTheme() {
+        val palettes=ReadingThemes+ReadingThemes.indices.map { readingTheme(it,"dark",false) }
+        for(theme in palettes) {
+            val background=theme.paper.toArgb()
+            val foreground=ColorUtils.compositeColors(readerStatusColor(theme).toArgb(),background)
+            val contrast=ColorUtils.calculateContrast(foreground,background)
+            assertTrue("${theme.name} status contrast=$contrast",contrast>=4.5)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    @Test fun systemBarIconsFollowReadingAppearanceAndRestoreLibrary() {
+        var originalStatus=false
+        var originalNavigation=false
+        var originalStatusColor=0
+        var originalNavigationColor=0
+        reader(beforeOpen={ scenario -> scenario.onActivity {
+            val controller=WindowCompat.getInsetsController(it.window,it.window.decorView)
+            originalStatus=controller.isAppearanceLightStatusBars
+            originalNavigation=controller.isAppearanceLightNavigationBars
+            originalStatusColor=it.window.statusBarColor
+            originalNavigationColor=it.window.navigationBarColor
+        } }) { scenario, _, book ->
+            device.openReaderThemes()
+            action("外观").click();text("深色").click()
+            action("关闭主题与设置").click()
+            scenario.onActivity {
+                val controller=WindowCompat.getInsetsController(it.window,it.window.decorView)
+                assertFalse("Dark reading has dark status icons",controller.isAppearanceLightStatusBars)
+                assertFalse("Dark reading has dark navigation icons",controller.isAppearanceLightNavigationBars)
+            }
+            action("阅读菜单").click();action("在图书中搜索").click()
+            assertNotNull(device.wait(Until.findObject(By.clazz("android.widget.EditText")),5000))
+            screenshot(scenario,"text-reader-search-dark.png")
+            device.pressBack()
+            assertTrue(device.wait(Until.gone(By.clazz("android.widget.EditText")),5000))
+            action("返回书库").click();text(book.title)
+            scenario.onActivity {
+                val controller=WindowCompat.getInsetsController(it.window,it.window.decorView)
+                assertEquals(originalStatus,controller.isAppearanceLightStatusBars)
+                assertEquals(originalNavigation,controller.isAppearanceLightNavigationBars)
+                if(android.os.Build.VERSION.SDK_INT<35) {
+                    assertEquals(originalStatusColor,it.window.statusBarColor)
+                    assertEquals(originalNavigationColor,it.window.navigationBarColor)
+                }
+            }
         }
     }
 
@@ -216,6 +271,11 @@ class ReaderChromeTest {
         assertTrue(device.wait(Until.gone(By.desc("关闭阅读菜单")), 5000))
         screenshot(scenario, "text-reader-chrome.png")
         assertPaperMargins(scenario)
+        device.openReaderThemes()
+        action("外观").click()
+        text("深色").click()
+        action("关闭主题与设置").click()
+        screenshot(scenario,"text-reader-chrome-dark.png")
     }
 
     @Test fun menuRoutesToExistingReadingToolsAndPersistsBookmarks() = reader { scenario, store, book ->
@@ -369,19 +429,39 @@ class ReaderChromeTest {
 
     @Test fun seekReturnsToThePassageBeforeSliderPreview() = reader { scenario, _, book ->
         js(scenario, "window.miuingJump(.25)")
-        Thread.sleep(300)
+        await(scenario,"window.miuingProgress()>.15")
+        val savedDeadline=System.currentTimeMillis()+5000
+        while(LibraryStore(instrumentation.targetContext).current(book.id).anchor<=100 && System.currentTimeMillis()<savedDeadline) Thread.sleep(40)
         val origin = LibraryStore(instrumentation.targetContext).current(book.id).anchor
-        assertTrue(origin > 100)
+        val viewport = js(scenario,"JSON.stringify([window.miuingWidth,window.miuingHeight])")
+        assertTrue("Origin=$origin, glyph=${js(scenario,"window.miuingAnchor()")}, progress=${js(scenario,"window.miuingProgress()")}",origin > 100)
         action("阅读菜单").click()
         val slider = action("阅读进度").visibleBounds
         device.click(slider.left + slider.width() * 75 / 100, slider.centerY())
         await(scenario, "window.miuingProgress()>.5")
+        val back = action("返回跳转前位置").visibleBounds
+        val close = action("返回书库").visibleBounds
+        assertTrue("Original return entry belongs at the top left",back.centerX()<device.displayWidth*.25 && back.centerY()<device.displayHeight*.2)
+        assertTrue("Return and close overlap",back.right<close.left)
+        assertEquals(viewport,js(scenario,"JSON.stringify([window.miuingWidth,window.miuingHeight])"))
         screenshot(scenario, "text-reader-history.png")
         action("返回跳转前位置").click()
         await(scenario, "!!window.miuingConfig && window.miuingConfig.anchor===$origin")
         Thread.sleep(250)
         assertEquals(origin, LibraryStore(instrumentation.targetContext).current(book.id).anchor)
         assertTrue(device.wait(Until.gone(By.desc("返回跳转前位置")), 5000))
+    }
+
+    @Test fun unstyledTextUsesSerifFallbackAndKeepsPublisherFont() = reader { scenario, _, _ ->
+        val metrics=js(scenario,"(()=>{const widths=['inherit','serif','sans-serif'].map(family=>{const span=document.createElement('span');span.textContent='iiiiWWWWmm123';span.style.cssText='position:absolute;white-space:pre;font-size:32px;font-weight:400;letter-spacing:0;font-family:'+family;document.body.appendChild(span);const width=span.getBoundingClientRect().width;span.remove();return width});return JSON.stringify(widths)})()")
+        val widths=org.json.JSONArray(org.json.JSONTokener(metrics).nextValue() as String)
+        println("READER_FALLBACK widths=$widths")
+        assertEquals("Unstyled book text must use the system serif fallback",widths.getDouble(1),widths.getDouble(0),.2)
+        js(scenario,"document.getElementById('p0').style.fontFamily='monospace'")
+        device.openReaderThemes()
+        action("增大字号").click()
+        action("关闭主题与设置").click()
+        await(scenario,"getComputedStyle(document.getElementById('p0')).fontFamily.indexOf('monospace')>=0")
     }
 
     @Test fun searchTypingKeepsSourceAndSelectedHitReturnsAfterRecreation() = reader { scenario, _, book ->
