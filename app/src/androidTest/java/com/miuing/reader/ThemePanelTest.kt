@@ -112,4 +112,36 @@ class ThemePanelTest {
         } finally {device.setOrientationNatural()}
     }
 
+    @Test fun bundledBodyFontsLoadOfflineKeepPassageAndRestorePublisher()=reader {s,prefs,context->
+        js(s,"window.miuingJumpAnchor(8000)")
+        await(s,"window.miuingProgress()>0")
+        val choices=listOf(Triple("buming","不明体","MIUingBuMing"),Triple("source-han-serif","思源宋体","MIUingSourceHanSerif"),
+            Triple("fz-jingsong","方正晶宋","MIUingFZJingSong"),Triple("kinghwa","京華老宋体","MIUingKingHwa"))
+        fun select(label:String) {
+            device.openReaderThemes();text("自定义").click();action("选择字体").click()
+            if(!device.hasObject(By.text(label)) && device.hasObject(By.scrollable(true))) UiScrollable(UiSelector().scrollable(true)).scrollIntoView(UiSelector().text(label))
+            text(label).click();text("完成").click();text("完成").click();action("关闭主题与设置").click()
+        }
+        val passageVisible="""(()=>{let offset=8000;const walk=document.createTreeWalker(document.getElementById('miuing-content'),NodeFilter.SHOW_TEXT);let node;while(node=walk.nextNode()){if(offset<node.length){const range=document.createRange();range.setStart(node,offset);range.setEnd(node,offset+1);const r=range.getBoundingClientRect(),b=document.getElementById('miuing-scroll').getBoundingClientRect();window.bodyFontSourceBounds={r:{left:r.left,right:r.right,top:r.top,bottom:r.bottom},b:{left:b.left,right:b.right,top:b.top,bottom:b.bottom},anchor:window.miuingAnchor(),loaded:window.chosenFontLoaded,count:window.chosenFontFaceCount};return r.left>=b.left-1&&r.right<=b.right+1&&r.top>=b.top-1&&r.bottom<=b.bottom+1;}offset-=node.length;}return false;})()"""
+        for((id,label,family) in choices) {
+            select(label)
+            await(s,"window.miuingConfig.fontFamily==='$id' && !!window.miuingConfig.fontFace")
+            js(s,"window.chosenFontLoaded=false;document.fonts.load('24px \"$family\"','天地玄黄MIUing，𠀀').then(faces=>{window.chosenFontFaceCount=faces.length;window.chosenFontLoaded=faces.length>0&&faces.every(f=>f.status==='loaded')})")
+            try { await(s,"window.chosenFontLoaded===true && $passageVisible") }
+            catch(e:AssertionError) {
+                device.takeScreenshot(File(context.getExternalFilesDir(null),"body-font-failure.png"))
+                throw AssertionError("Body font $id source bounds: ${js(s,"JSON.stringify(window.bodyFontSourceBounds)")}",e)
+            }
+            assertEquals("Selected body face did not override publisher text","true",js(s,"getComputedStyle(document.querySelector('p span')).fontFamily.includes('$family')"))
+            assertEquals(id,ThemeOptionsStore(prefs).load(0).font)
+            if(id=="kinghwa") assertEquals("All Unicode shards must load, including supplementary characters","3",js(s,"window.chosenFontFaceCount"))
+            device.takeScreenshot(File(context.getExternalFilesDir(null),"body-font-$id.png"))
+        }
+        s.recreate()
+        await(s,"window.miuingConfig.fontFamily==='kinghwa' && document.fonts.status==='loaded' && $passageVisible")
+        select("原始（书籍字体）")
+        await(s,"window.miuingConfig.fontFamily==='book'")
+        assertEquals("Book mode did not restore publisher typography","true",js(s,"getComputedStyle(document.body).fontFamily.includes('monospace') && getComputedStyle(document.querySelector('p span')).fontFamily==='serif'"))
+    }
+
 }

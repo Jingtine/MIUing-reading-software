@@ -1,0 +1,28 @@
+{
+  "sourceSha256": "f7fef9fc413e9e2343f0bb432c51cca41c44b8fe37f071dc86b050896ae9f9e2",
+  "encodedCharacters": 39575,
+  "outlinesAndMetrics": "identical for every encoded character",
+  "shards": [
+    {
+      "file": "kinghwa-text.ttf",
+      "unicodeRange": "U+0-4DFF",
+      "characters": 7938,
+      "bytes": 6627128,
+      "sha256": "3c0c71d4070f40fa5f21ac89262bc057f17e9f065e34f30f955b50d92641af1f"
+    },
+    {
+      "file": "kinghwa-cjk.ttf",
+      "unicodeRange": "U+4E00-9FFF",
+      "characters": 20992,
+      "bytes": 18173088,
+      "sha256": "ec3f0913295c49d142d9ef335eb7f740a85e5ef60f2281360bd60b1dc9861562"
+    },
+    {
+      "file": "kinghwa-extended.ttf",
+      "unicodeRange": "U+A000-10FFFF",
+      "characters": 10645,
+      "bytes": 8765932,
+      "sha256": "adaf0396e4c0464805e3cd0716877ad0ccf6ec3d73b0023493b932fb52766e55"
+    }
+  ]
+}

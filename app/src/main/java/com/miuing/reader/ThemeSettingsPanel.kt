@@ -138,15 +138,16 @@ import kotlinx.coroutines.launch
                                     }
                                 }
                             }
-                            "font"->listOf("book" to "原始（书籍字体）","serif" to "衬线字体","sans" to "无衬线字体","mono" to "等宽字体").forEach {(value,label)->
+                            "font"->ReadingFonts.choices.forEach {font->
+                                val value=font.id
                                 Row(Modifier.fillMaxWidth().clickable {draft=draft.copy(font=value)}.padding(vertical=6.dp),verticalAlignment=Alignment.CenterVertically) {
                                     RadioButton(selected=draft.font==value,onClick={draft=draft.copy(font=value)})
-                                    Text(label,fontSize=17.sp,fontFamily=when(value) {"serif"->FontFamily.Serif;"mono"->FontFamily.Monospace;else->FontFamily.SansSerif})
+                                    Text(font.label,fontSize=17.sp)
                                 }
                             }
                             "custom"->{
                                 Row(Modifier.fillMaxWidth().clickable {route="font"}.semantics {contentDescription="选择字体"}.padding(vertical=14.dp),verticalAlignment=Alignment.CenterVertically) {
-                                    Text("字体",Modifier.weight(1f),fontSize=17.sp);Text(when(draft.font) {"serif"->"衬线字体";"sans"->"无衬线字体";"mono"->"等宽字体";else->"原始"},color=ink.copy(alpha=.6f));Icon(Icons.Default.ChevronRight,null)
+                                    Text("字体",Modifier.weight(1f),fontSize=17.sp);Text(if(draft.font=="book") "原始" else ReadingFonts.find(draft.font)?.label ?: "原始",color=ink.copy(alpha=.6f));Icon(Icons.Default.ChevronRight,null)
                                 }
                                 ThemeToggle("粗体文本",draft.bold,{draft=draft.copy(bold=it)})
                                 HorizontalDivider(Modifier.padding(vertical=14.dp),color=ink.copy(alpha=.1f))

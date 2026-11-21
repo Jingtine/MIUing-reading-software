@@ -78,7 +78,9 @@ internal fun loadReaderScript(context:android.content.Context):String =
         LaunchedEffect(path,jump,scrolling) {latestLoadError()}
         Text("无法读取此章节：$readError");return
     }
-    val loader=remember(root) { WebViewAssetLoader.Builder().addPathHandler("/book/",WebViewAssetLoader.InternalStoragePathHandler(context,root)).build() }
+    val loader=remember(root) { WebViewAssetLoader.Builder()
+        .addPathHandler("/book/",WebViewAssetLoader.InternalStoragePathHandler(context,root))
+        .addPathHandler("/reader-assets/",WebViewAssetLoader.AssetsPathHandler(context)).build() }
     val bridge:ReadingBridge=remember(path,jump,scrolling) { ReadingBridge({p,a->latestLocation(p,a)},{latestTap()},{latestSelection(it)},{latestChapter(chapter+it)},{latestPages(it)}) }
     val webResult=remember(path,jump,scrolling) { runCatching { WebView(context).apply {
         // Chromium 69 leaves black raster tiles behind modal windows on API26.
@@ -108,6 +110,7 @@ internal fun loadReaderScript(context:android.content.Context):String =
         put("fontSize",fontSize);put("scrolling",scrolling);put("serif",serif);put("bold",boldText)
         put("lineHeight",lineHeight);put("margin",margin);put("letterSpacing",letterSpacing)
         put("pageTurn",pageTurn);put("fontFamily",fontFamily);put("wordSpacing",wordSpacing);put("justify",justify);put("customLayout",customLayout)
+        put("fontFace",ReadingFonts.face(fontFamily))
         put("notes",JSONArray(notes.filter { it.chapter==chapter }.map { JSONObject().put("text",it.text).put("start",it.start).put("end",it.end) }))
     }.toString()
     fun script(view:WebView):String {

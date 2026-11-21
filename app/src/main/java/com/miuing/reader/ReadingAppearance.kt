@@ -28,7 +28,7 @@ data class ThemeOptions(
     fun normalized(index:Int):ThemeOptions {
         val defaults=defaults(index)
         fun safe(value:Float,fallback:Float,min:Float,max:Float)=if(value.isFinite()) value.coerceIn(min,max) else fallback
-        return copy(font=font.takeIf {it in listOf("book","serif","sans","mono")} ?: defaults.font,
+        return copy(font=font.takeIf {ReadingFonts.find(it)!=null} ?: defaults.font,
             lineHeight=safe(lineHeight,defaults.lineHeight,1.2f,2.4f),margin=safe(margin,defaults.margin,12f,48f),
             letterSpacing=safe(letterSpacing,0f,0f,.15f),wordSpacing=safe(wordSpacing,0f,0f,.5f))
     }

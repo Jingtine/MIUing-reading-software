@@ -48,4 +48,11 @@ class ThemeOptionsStoreTest {
         assertEquals(0f,restored.letterSpacing,.001f)
         assertEquals(0f,restored.wordSpacing,.001f)
     }
+    @Test fun bundledBodyFontsSurviveSavingAndThemeReload()=preferences {p->
+        for(id in listOf("buming","source-han-serif","fz-jingsong","kinghwa")) {
+            ThemeOptionsStore(p).save(0,ThemeOptions(font=id))
+            assertEquals("Bundled body font was discarded during normalization",id,ThemeOptionsStore(p).load(0).font)
+            assertEquals("Changing the original theme leaked into another theme","serif",ThemeOptionsStore(p).load(2).font)
+        }
+    }
 }

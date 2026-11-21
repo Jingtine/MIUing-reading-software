@@ -19,8 +19,9 @@ import java.util.concurrent.atomic.AtomicInteger
 class ReaderFontMetricsTest {
     class Bridge {
         val reported = CopyOnWriteArrayList<ReaderPageInfo>()
+        val anchors = CopyOnWriteArrayList<Int>()
         val writes = AtomicInteger()
-        @JavascriptInterface fun progress(position: Float, anchor: Int) { writes.incrementAndGet() }
+        @JavascriptInterface fun progress(position: Float, anchor: Int) { anchors.add(anchor);writes.incrementAndGet() }
         @JavascriptInterface fun pages(current: Int, total: Int) { reported.add(ReaderPageInfo(current, total)) }
     }
 
@@ -90,4 +91,55 @@ class ReaderFontMetricsTest {
             }
         }
     }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun delayedBodyFont(broken:Boolean,navigateWhileLoading:Boolean) {
+        val requested=CountDownLatch(1);val release=CountDownLatch(1);val bridge=Bridge()
+        ActivityScenario.launch(MainActivity::class.java).use {scenario->
+            var view:WebView?=null
+            try {
+                scenario.onActivity {activity->
+                    view=WebView(activity).apply {
+                        settings.javaScriptEnabled=true;addJavascriptInterface(bridge,"MIUing")
+                        webViewClient=object:WebViewClient() {
+                            override fun shouldInterceptRequest(v:WebView,r:WebResourceRequest):WebResourceResponse? {
+                                if(!r.url.path.orEmpty().endsWith("delayed.ttf")) return null
+                                requested.countDown();release.await(20,TimeUnit.SECONDS)
+                                return WebResourceResponse("font/ttf",null,if(broken) "invalid font".byteInputStream() else File("/system/fonts/Roboto-Regular.ttf").inputStream())
+                            }
+                            override fun onPageFinished(v:WebView,url:String) {
+                                v.evaluateJavascript(loadReaderScript(instrument.targetContext)+";window.baseFontConfig={paper:'#fff',ink:'#222',width:360,height:300,fontSize:20,margin:20,scrolling:false,lineHeight:1.85,letterSpacing:0,fontFamily:'mono',position:0,anchor:-1,customLayout:true};window.miuingConfigure(window.baseFontConfig)",null)
+                            }
+                        }
+                    }
+                    activity.setContentView(view)
+                    view!!.loadDataWithBaseURL("https://appassets.androidplatform.net/","<meta name='viewport' content='width=device-width,initial-scale=1'><body>"+(0..200).joinToString("") {"<p>"+"i".repeat(256)+"</p>"}+"</body>","text/html","UTF-8",null)
+                }
+                await(view!!,"!!window.miuingConfig && window.miuingAnchor()>=0")
+                js(view!!,"window.miuingJumpAnchor(1800);window.miuingConfigure(Object.assign({},window.baseFontConfig,{fontFamily:'delayed',fontFace:{family:'DelayedBody',url:'https://appassets.androidplatform.net/delayed.ttf'}}))")
+                assertTrue("Selected body font was not requested",requested.await(10,TimeUnit.SECONDS))
+                val writes=bridge.writes.get()
+                if(navigateWhileLoading) js(view!!,"window.miuingJumpAnchor(4200)")
+                val fallbackPages=js(view!!,"Math.ceil((document.getElementById('miuing-scroll').scrollWidth-360)/360)+1")
+                js(view!!,"window.fontSettled=false;document.fonts.load('20px DelayedBody').catch(()=>[]).then(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>window.fontSettled=true)))")
+                release.countDown();await(view!!,"window.fontSettled===true")
+                if(!broken) assertNotEquals("Delayed fixture did not actually reflow",fallbackPages,js(view!!,"Math.ceil((document.getElementById('miuing-scroll').scrollWidth-360)/360)+1"))
+                val end=System.currentTimeMillis()+5000
+                while(bridge.writes.get()<=writes && System.currentTimeMillis()<end) Thread.sleep(50)
+                assertTrue("Font load left the reader stuck restoring",bridge.writes.get()>writes)
+                assertEquals("Late font completion overwrote the intended source",if(navigateWhileLoading) 4200 else 1800,bridge.anchors.last())
+                val destination=if(navigateWhileLoading) 4200 else 1800
+                assertEquals("Reported source survived but its text moved offscreen after font reflow","true",js(view!!,"""(()=>{let offset=$destination;const walk=document.createTreeWalker(document.getElementById('miuing-content'),NodeFilter.SHOW_TEXT);let node;while(node=walk.nextNode()){if(offset<node.length){const range=document.createRange();range.setStart(node,offset);range.setEnd(node,offset+1);const r=range.getBoundingClientRect(),b=document.getElementById('miuing-scroll').getBoundingClientRect();return r.left>=b.left-1&&r.right<=b.right+1&&r.top>=b.top-1&&r.bottom<=b.bottom+1;}offset-=node.length;}return false;})()"""))
+                js(view!!,"window.miuingAdvance(1)")
+                val next=System.currentTimeMillis()+3000
+                while(bridge.writes.get()<=writes+1 && System.currentTimeMillis()<next) Thread.sleep(50)
+                assertTrue("Reader did not accept navigation after font completion",bridge.writes.get()>writes+1)
+            } finally {
+                release.countDown()
+                instrument.runOnMainSync {view?.let {(it.parent as? ViewGroup)?.removeView(it);it.destroy()}}
+            }
+        }
+    }
+    @Test fun failedBodyFontFallsBackAndRestoresItsPassage()=delayedBodyFont(broken=true,navigateWhileLoading=false)
+    @Test fun navigationSupersedesPendingBodyFontRestoration()=delayedBodyFont(broken=false,navigateWhileLoading=true)
 }

@@ -2,8 +2,9 @@
 (() => {
   if (window.miuingConfigure) return;
   let config, shell, flow, restoring = false, timer, selectionTimer, sx = 0, sy = 0, suppressTouchClick = false, touchAt = 0, selectedAtTouch = false;
-  let retainedAnchor = -1, layoutRevision = 0;
+  let retainedAnchor = -1, publishedAnchor = -1, layoutRevision = 0;
   let hasPosition = false, pendingInitial = null;
+  let ownedScroll = null;
   const publisherTextStyles = new Map();
   let textIndex;
   window.miuingAnchor = () => {
@@ -21,16 +22,22 @@
   }
   window.miuingProgress = () => extent() ? (config.scrolling ? shell.scrollTop : shell.scrollLeft) / extent() : 0;
   function beginNavigation() {retainedAnchor=-1;layoutRevision++;restoring=false;hasPosition=true;pendingInitial=null;clearTimeout(timer);}
+  function scrollReader(left,top) {
+    shell.scrollTo(left,top);
+    // Scroll events can arrive after restoration's last animation frame.
+    // Match actual clamped coordinates so our own event keeps the text anchor.
+    ownedScroll={left:shell.scrollLeft,top:shell.scrollTop};
+  }
   function jumpFraction(fraction) {
     const at=Math.max(0,Math.min(1,fraction))*extent();
     const page=fraction>=1?extent():Math.min(extent(),Math.round(at/config.width)*config.width);
-    shell.scrollTo(config.scrolling ? 0 : page, config.scrolling ? at : 0);
+    scrollReader(config.scrolling ? 0 : page, config.scrolling ? at : 0);
   }
   window.miuingJump = fraction => {beginNavigation();jumpFraction(fraction);publish();};
   function locateRect(rect) {
     const box = shell.getBoundingClientRect();
-    if (config.scrolling) shell.scrollTop += rect.top - box.top - config.margin;
-    else shell.scrollLeft = Math.max(0, Math.floor((rect.left - box.left + shell.scrollLeft - config.margin + 1) / config.width) * config.width);
+    if (config.scrolling) scrollReader(shell.scrollLeft,shell.scrollTop + rect.top - box.top - config.margin);
+    else scrollReader(Math.max(0, Math.floor((rect.left - box.left + shell.scrollLeft - config.margin + 1) / config.width) * config.width),shell.scrollTop);
   }
   function jumpAnchor(offset) {
     const range=textIndex.rangeAt(offset);
@@ -50,7 +57,8 @@
   }
   function publish() {
     if (restoring) return;
-    MIUing.progress(window.miuingProgress(), retainedAnchor>=0?retainedAnchor:window.miuingAnchor());
+    publishedAnchor=retainedAnchor>=0?retainedAnchor:window.miuingAnchor();
+    MIUing.progress(window.miuingProgress(), publishedAnchor);
     publishPages();
   }
   function textStyleOverrides(family, next) {
@@ -96,14 +104,24 @@
       while (document.body.firstChild) flow.appendChild(document.body.firstChild);
       textIndex = new window.MIUingTextIndex(flow);
       shell = document.createElement('div'); shell.id = 'miuing-scroll'; shell.appendChild(flow); document.body.appendChild(shell);
-      shell.addEventListener('scroll', () => {if(restoring) return;retainedAnchor=-1;clearTimeout(timer);timer=setTimeout(publish,180);});
+      shell.addEventListener('scroll', () => {
+        const own=ownedScroll && Math.abs(shell.scrollLeft-ownedScroll.left)<1 && Math.abs(shell.scrollTop-ownedScroll.top)<1;
+        ownedScroll=null;
+        if(restoring || own) return;
+        retainedAnchor=-1;clearTimeout(timer);timer=setTimeout(publish,180);
+      });
     }
     let style = document.getElementById('miuing-style');
     if (!style) { style = document.createElement('style'); style.id = 'miuing-style'; document.head.appendChild(style); }
     const w = next.width, h = next.height, m = next.margin, available = w - 2 * m;
     const column = w >= 900 ? (w - 4 * m) / 2 : available;
     const families={serif:'serif',sans:'sans-serif',mono:'monospace'};
-    const family=next.fontFamily==='book'?null:(families[next.fontFamily] || (next.serif?'serif':'sans-serif'));
+    const face=next.fontFace;
+    let fontStyle=document.getElementById('miuing-font-style');
+    if(!fontStyle) {fontStyle=document.createElement('style');fontStyle.id='miuing-font-style';document.head.appendChild(fontStyle);}
+    const faceCss=face?(face.sources || [face]).map(source=>`@font-face{font-family:"${face.family}";src:url("${source.url}");font-style:normal;font-weight:400;${source.unicodeRange?`unicode-range:${source.unicodeRange};`:''}}`).join('\n'):'';
+    if(fontStyle.textContent!==faceCss) fontStyle.textContent=faceCss;
+    const family=next.fontFamily==='book'?null:face?`"${face.family}",serif`:(families[next.fontFamily] || (next.serif?'serif':'sans-serif'));
     const fontCss=family?`font-family:${family}!important;`:'';
     const layoutCss=next.customLayout===false?'':`line-height:${next.lineHeight}!important;letter-spacing:${next.letterSpacing}em!important;word-spacing:${next.wordSpacing || 0}em!important;`;
     style.textContent = `
@@ -115,7 +133,7 @@
     `;
     textIndex.highlights(next.notes || [], next.search || '');
     textStyleOverrides(family,next);
-    requestAnimationFrame(() => requestAnimationFrame(() => {
+    const finishLayout=()=>requestAnimationFrame(() => requestAnimationFrame(() => {
       if(revision!==layoutRevision) return;
       if (previous && previous.anchor >= 0) jumpAnchor(previous.anchor);
       else if (!previous && destination.fragment && document.getElementById(destination.fragment)) {retainedAnchor=-1;locateRect(document.getElementById(destination.fragment).getBoundingClientRect());}
@@ -140,6 +158,22 @@
         }));
       });
     }));
+    // A body-font choice must restore its passage using the final glyph metrics.
+    // Existing revision checks let later navigation/configuration supersede it.
+    if(face && document.fonts) document.fonts.load(`${next.fontSize}px "${face.family}"`,face.sample || ' ').catch(()=>[]).then(()=>{
+      if(revision!==layoutRevision) {
+        if(config===next && !restoring) {
+          // Keep the newer navigation passage visible after glyphs reflow;
+          // do not restore the older destination or write progress again.
+          const latest=retainedAnchor>=0?retainedAnchor:publishedAnchor;
+          if(latest>=0) jumpAnchor(latest);
+          publishPages();
+        }
+        return;
+      }
+      finishLayout();
+    });
+    else finishLayout();
   };
   document.addEventListener('selectionchange', () => {
     clearTimeout(selectionTimer);
@@ -155,9 +189,9 @@
     if (!config || config.scrolling || getSelection().toString()) return;
     beginNavigation();
     const remaining = extent() - shell.scrollLeft;
-    if (direction > 0 && remaining <= config.width + 1) shell.scrollLeft = extent();
-    else if (direction < 0 && shell.scrollLeft <= config.width + 1) shell.scrollLeft = 0;
-    else shell.scrollLeft = Math.max(0, Math.min(extent(), (Math.round(shell.scrollLeft / config.width) + direction) * config.width));
+    if (direction > 0 && remaining <= config.width + 1) scrollReader(extent(),shell.scrollTop);
+    else if (direction < 0 && shell.scrollLeft <= config.width + 1) scrollReader(0,shell.scrollTop);
+    else scrollReader(Math.max(0, Math.min(extent(), (Math.round(shell.scrollLeft / config.width) + direction) * config.width)),shell.scrollTop);
     publish();
   };
   function turn(direction) {

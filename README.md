@@ -2,7 +2,7 @@
 
 Android 手机与平板离线阅读器，按 Apple Books 的书库组织与阅读体验开发。使用用户提供的猫咪 M 图标。
 
-当前为 **0.6.6 开发版**，主适配 Android 16（编译/目标 API 36），兼容下限 Android 8（API 26）。以 EPUB/TXT 文字阅读为开发重点，以流畅、美观、轻量和接近 Apple Books 的阅读体验为目标。功能与视觉对齐进度见 [对照清单](docs/reference/parity.md)。
+当前为 **0.6.7 开发版**，主适配 Android 16（编译/目标 API 36），兼容下限 Android 8（API 26）。以 EPUB/TXT 文字阅读为开发重点，以流畅、美观、轻量和接近 Apple Books 的阅读体验为目标。功能与视觉对齐进度见 [对照清单](docs/reference/parity.md)。
 
 ## 当前可用
 
@@ -39,7 +39,7 @@ $env:JAVA_HOME = '你的 JDK 17 安装路径'
 .\gradlew.bat :core:check :app:assembleDebug :app:lintDebug
 ```
 
-APK：`app/build/outputs/apk/debug/app-debug.apk`，当前约 25.9 MiB。该 APK 使用开发签名，供本地安装测试。
+APK：`app/build/outputs/apk/debug/app-debug.apk`，当前约 82.8 MiB，含四款用户指定的正文字库，保持原始字符覆盖。该 APK 使用开发签名，供本地安装测试。
 
 PDF 搜索入口在阅读页底部；长按文字后可高亮或添加笔记，顶部画笔可进入手写模式，导出按钮通过系统文件选择器保存带批注的副本。扫描 PDF 暂无 OCR。实现与验证记录见 [PDF 0.3 开发记录](docs/pdf-parity-0.3.md)。
 
@@ -61,6 +61,8 @@ Android16 主适配与分页边界书签修复见 [0.6.1 开发记录](docs/andr
 阅读亮屏设置、生命周期与超时验证见 [0.6.5 开发记录](docs/reading-sleep-0.6.5.md)。
 
 阅读页视觉、字体回退和系统栏校准见 [0.6.6 对照记录](docs/reader-visual-0.6.6.md)。
+
+界面跟随 Android 系统字体，正文新增不明体、思源宋体、方正晶宋、京華老宋体四款离线字库，并保留书籍字体选择；范围和验证见 [0.6.7 正文字体](docs/reading-fonts-0.6.7.md)。
 
 本工作区额外在 `.tools` 中下载了 Gradle 与 Android SDK，均不纳入版本控制。若官方 Gradle 下载受网络限制，可使用本机已校验的 `.tools/gradle-8.13/bin/gradle.bat` 运行同样的任务。
 
