@@ -1,0 +1,2 @@
+# Keep the upstream OFL text verbatim, including its original trailing space.
+app/src/main/assets/fonts/LXGWWenKai-OFL.txt whitespace=-blank-at-eol

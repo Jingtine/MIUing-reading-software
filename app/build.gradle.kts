@@ -3,6 +3,13 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+val personalFonts = providers.gradleProperty("personalFonts").orNull == "true"
+val personalFontAssets = rootProject.file(".local-fonts")
+if (personalFonts) {
+    check(listOf("st-kaiti.ttf", "kai-ti.ttf").all { personalFontAssets.resolve("fonts/$it").isFile }) {
+        "Personal fonts require .local-fonts/fonts/st-kaiti.ttf and kai-ti.ttf; see docs/reading-fonts-0.6.8.md"
+    }
+}
 android {
     namespace = "com.miuing.reader"
     compileSdk = 36
@@ -10,11 +17,13 @@ android {
         applicationId = "com.miuing.reader"
         minSdk = 26
         targetSdk = 36
-        versionCode = 14
-        versionName = "0.6.7"
+        versionCode = 15
+        versionName = "0.6.8"
+        buildConfigField("boolean", "PERSONAL_FONTS", personalFonts.toString())
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
+    if (personalFonts) sourceSets.getByName("main").assets.srcDir(personalFontAssets)
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

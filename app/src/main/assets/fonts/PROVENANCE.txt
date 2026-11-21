@@ -1,7 +1,7 @@
 MIUing body-font assets
 
 The following originals were supplied by the user on 2026-11-21. They are
-used only for book body text. Three are copied without modification;
+used only for book body text. Five are copied without modification;
 KingHwa uses Unicode shards to support legacy WebView's 30 MiB limit.
 Changing a body's font does not change the Android interface font.
 
@@ -44,7 +44,31 @@ KingHwa original: font-sources/kinghwa.ttf (repository source, not an APK asset)
   kinghwa-extended.ttf: U+A000-10FFFF, 10,645 characters, 8,765,932 bytes
     SHA256: ADAF0396E4C0464805E3CD0716877AD0CCF6EC3D73B0023493B932FB52766E55
 
-No separate license text was supplied for the other three fonts. Their
+source-han-sans.otf
+  Original: SourceHanSansCN-Regular.otf
+  Family: Source Han Sans CN / 思源黑体 CN
+  Version: 2.005
+  Embedded copyright: © 2014-2025 Adobe (http://www.adobe.com/),
+  with Reserved Font Name 'Source'.
+  License: SIL Open Font License, Version 1.1.
+  License text: SourceHanSans-LICENSE.txt
+  License source: https://github.com/adobe-fonts/source-han-sans/blob/release/LICENSE.txt
+  SHA256: E2BC8A2E7F37474B774FFF8DB758681ECE40BB6947A90D571BCE9DD60671A8E4
+
+lxgw-wenkai.ttf
+  Original: LXGWWenKai-Regular.ttf
+  Family: LXGW WenKai / 霞鹜文楷
+  Version: 1.530 (October 18, 2026)
+  Embedded copyright: Copyright 2021-2026 LXGW
+  (https://github.com/lxgw/LxgwWenKai), with Reserved Font Name
+  '霞鹜', '霞鶩', '落霞孤鹜', '落霞孤鶩' and 'LXGW'.
+  Copyright 2020 The Klee Project Authors (https://github.com/fontworks-fonts/Klee)
+  License: SIL Open Font License, Version 1.1.
+  License text: LXGWWenKai-OFL.txt (includes author's additional permission)
+  License source: https://github.com/lxgw/LxgwWenKai/blob/master/OFL.txt
+  SHA256: 2D73EEA94AD808999D90C0000C239A84A33B09D4BC6AB6C5B8BBF1EDA8A7FC8B
+
+No separate license text was supplied for BuMing, FZJingSong or KingHwa. Their
 original font metadata remains intact; this record does not label them
 as open source or replace their authors' license terms.
 

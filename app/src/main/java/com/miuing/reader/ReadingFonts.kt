@@ -20,8 +20,13 @@ internal object ReadingFonts {
         ReadingFont("kinghwa","京華老宋体",family="MIUingKingHwa",sources=listOf(
             ReadingFontSource("kinghwa-text.ttf","U+0-4DFF","A"),
             ReadingFontSource("kinghwa-cjk.ttf","U+4E00-9FFF","中"),
-            ReadingFontSource("kinghwa-extended.ttf","U+A000-10FFFF","，")))
-    )
+            ReadingFontSource("kinghwa-extended.ttf","U+A000-10FFFF","，"))),
+        ReadingFont("source-han-sans","思源黑体","source-han-sans.otf","MIUingSourceHanSans"),
+        ReadingFont("lxgw-wenkai","霞鹜文楷","lxgw-wenkai.ttf","MIUingLXGWWenKai")
+    ) + if(BuildConfig.PERSONAL_FONTS) listOf(
+        ReadingFont("st-kaiti","华文楷体","st-kaiti.ttf","MIUingSTKaiti"),
+        ReadingFont("kai-ti","楷体","kai-ti.ttf","MIUingKaiTi")
+    ) else emptyList()
     fun find(id:String)=choices.firstOrNull {it.id==id}
     fun face(id:String):JSONObject?=find(id)?.takeIf {it.sources.isNotEmpty()}?.let {font->
         JSONObject().put("family",font.family).put("sample",font.sources.joinToString("") {it.sample}).put("sources",JSONArray(font.sources.map {

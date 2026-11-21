@@ -37,6 +37,7 @@ class ThemePanelTest {
     private fun text(value:String)=device.wait(Until.findObject(By.text(value)),5000) ?: throw AssertionError("Missing $value")
     private fun action(value:String)=device.wait(Until.findObject(By.desc(value)),5000) ?: throw AssertionError("Missing action $value")
     private fun reader(block:(ActivityScenario<MainActivity>,android.content.SharedPreferences,android.content.Context)->Unit)=runBlocking {
+        device.setOrientationNatural();device.waitForIdle()
         val context=instrument.targetContext;val prefs=context.getSharedPreferences("reading",0);prefs.edit().clear().commit()
         val title="主题对照-${UUID.randomUUID().toString().take(8)}";val file=File(context.cacheDir,"theme-panel.epub")
         ZipOutputStream(file.outputStream()).use {z->
@@ -103,7 +104,10 @@ class ThemePanelTest {
     @Test fun shortPanelOpensCustomizationAtItsHeading()=reader {s,_,context->
         device.openReaderThemes()
         try {
+            val beforeWidth=js(s,"window.miuingConfig.width").toDouble()
             device.setOrientationLeft();text("主题与设置")
+            await(s,"window.miuingConfig.width!==$beforeWidth")
+            device.waitForIdle()
             if(!device.hasObject(By.text("自定义"))) UiScrollable(UiSelector().scrollable(true)).scrollIntoView(UiSelector().text("自定义"))
             text("自定义").click()
             val font=action("选择字体").visibleBounds
@@ -116,9 +120,12 @@ class ThemePanelTest {
         js(s,"window.miuingJumpAnchor(8000)")
         await(s,"window.miuingProgress()>0")
         val choices=listOf(Triple("buming","不明体","MIUingBuMing"),Triple("source-han-serif","思源宋体","MIUingSourceHanSerif"),
-            Triple("fz-jingsong","方正晶宋","MIUingFZJingSong"),Triple("kinghwa","京華老宋体","MIUingKingHwa"))
+            Triple("fz-jingsong","方正晶宋","MIUingFZJingSong"),Triple("kinghwa","京華老宋体","MIUingKingHwa"),
+            Triple("source-han-sans","思源黑体","MIUingSourceHanSans"),Triple("lxgw-wenkai","霞鹜文楷","MIUingLXGWWenKai")) +
+            if(BuildConfig.PERSONAL_FONTS) listOf(Triple("st-kaiti","华文楷体","MIUingSTKaiti"),Triple("kai-ti","楷体","MIUingKaiTi")) else emptyList()
         fun select(label:String) {
             device.openReaderThemes();text("自定义").click();action("选择字体").click()
+            text("原始（书籍字体）");device.waitForIdle()
             if(!device.hasObject(By.text(label)) && device.hasObject(By.scrollable(true))) UiScrollable(UiSelector().scrollable(true)).scrollIntoView(UiSelector().text(label))
             text(label).click();text("完成").click();text("完成").click();action("关闭主题与设置").click()
         }
@@ -138,7 +145,7 @@ class ThemePanelTest {
             device.takeScreenshot(File(context.getExternalFilesDir(null),"body-font-$id.png"))
         }
         s.recreate()
-        await(s,"window.miuingConfig.fontFamily==='kinghwa' && document.fonts.status==='loaded' && $passageVisible")
+        await(s,"window.miuingConfig.fontFamily==='${choices.last().first}' && document.fonts.status==='loaded' && $passageVisible")
         select("原始（书籍字体）")
         await(s,"window.miuingConfig.fontFamily==='book'")
         assertEquals("Book mode did not restore publisher typography","true",js(s,"getComputedStyle(document.body).fontFamily.includes('monospace') && getComputedStyle(document.querySelector('p span')).fontFamily==='serif'"))
