@@ -12,6 +12,8 @@ import kotlin.math.*
 /** A temporary visual layer; the WebView remains the source of text and location. */
 class PageTurnOverlay(context:Context):View(context) {
     private var snapshot:Bitmap?=null
+    private var destination:Bitmap?=null
+    private var interactive=false
     private var animation:ValueAnimator?=null
     private var fraction=0f
     private var direction=1
@@ -26,19 +28,39 @@ class PageTurnOverlay(context:Context):View(context) {
     private val edgeShade=LinearGradient(0f,0f,1f,0f,0x40000000,Color.TRANSPARENT,Shader.TileMode.CLAMP)
     init {visibility=GONE;importantForAccessibility=IMPORTANT_FOR_ACCESSIBILITY_NO}
 
+    internal fun capture(web:WebView):Bitmap? {
+        if(web.width<=0 || web.height<=0) return null
+        val scale=min(1f,min(1200f/web.width,min(2000f/web.height,sqrt(2_000_000f/(web.width.toFloat()*web.height)))))
+        var captured:Bitmap?=null
+        return try {
+            captured=Bitmap.createBitmap((web.width*scale).toInt().coerceAtLeast(1),(web.height*scale).toInt().coerceAtLeast(1),Bitmap.Config.ARGB_8888)
+            web.draw(Canvas(captured).apply {scale(scale,scale)});captured
+        } catch(_:RuntimeException) {captured?.recycle();null}
+        catch(_:OutOfMemoryError) {captured?.recycle();null}
+    }
+    internal fun beginDrag(source:Bitmap,forward:Int,paperColor:Int) {
+        clear();snapshot=source;direction=forward;paper=paperColor;style="curl";fraction=0f;interactive=true
+        visibility=VISIBLE;invalidate()
+    }
+    internal fun targetFrame(frame:Bitmap) {destination?.recycle();destination=frame;invalidate()}
+    internal fun dragTo(progress:Float) {fraction=progress.coerceIn(0f,1f);postInvalidateOnAnimation()}
+    internal fun settle(commit:Boolean,finished:()->Unit) {
+        val end=if(commit) 1f else 0f
+        if(!ValueAnimator.areAnimatorsEnabled() || abs(end-fraction)<.001f) {fraction=end;invalidate();finished();return}
+        animation=ValueAnimator.ofFloat(fraction,end).apply {
+            duration=(320*abs(end-fraction)).toLong().coerceAtLeast(90)
+            addUpdateListener {fraction=it.animatedValue as Float;invalidate()}
+            addListener(object:AnimatorListenerAdapter() {override fun onAnimationEnd(animation:Animator) {finished()}})
+            start()
+        }
+    }
+
     fun turn(web:WebView,mode:String,forward:Int,paperColor:Int,advance:(()->Unit)->Unit) {
         // A fresh turn ends the old visual transition instead of dropping input
         // or allocating another snapshot during rapid navigation.
         if(snapshot!=null) {clear();advance {};return}
         if(!ValueAnimator.areAnimatorsEnabled() || web.width<=0 || web.height<=0) {advance {};return}
-        val scale=min(1f,min(1200f/web.width,min(2000f/web.height,sqrt(2_000_000f/(web.width.toFloat()*web.height)))))
-        var captured:Bitmap?=null
-        try {
-            captured=Bitmap.createBitmap((web.width*scale).toInt().coerceAtLeast(1),(web.height*scale).toInt().coerceAtLeast(1),Bitmap.Config.ARGB_8888)
-            web.draw(Canvas(captured).apply {scale(scale,scale)})
-        } catch(_:RuntimeException) {captured?.recycle();advance {};return}
-        catch(_:OutOfMemoryError) {captured?.recycle();advance {};return}
-        val frame=captured!!
+        val frame=capture(web) ?: run {advance {};return}
         snapshot=frame;fraction=0f;direction=forward;style=mode;paper=paperColor
         visibility=VISIBLE;invalidate()
         advance {
@@ -56,7 +78,7 @@ class PageTurnOverlay(context:Context):View(context) {
     }
     fun clear() {
         animation?.let {it.removeAllListeners();it.cancel()};animation=null
-        snapshot?.recycle();snapshot=null;visibility=GONE;invalidate()
+        snapshot?.recycle();snapshot=null;destination?.recycle();destination=null;interactive=false;visibility=GONE;invalidate()
     }
     override fun onDetachedFromWindow() {clear();super.onDetachedFromWindow()}
     private fun drawSnapshot(canvas:Canvas,image:Bitmap,alpha:Int=255) {
@@ -72,6 +94,8 @@ class PageTurnOverlay(context:Context):View(context) {
         val image=snapshot ?: return
         val w=width.toFloat();val h=height.toFloat();target.set(0f,0f,w,h)
         paint.shader=null
+        if(interactive && destination==null) {canvas.drawBitmap(image,null,target,paint);return}
+        destination?.let {canvas.drawBitmap(it,null,target,paint)}
         if(style=="fade") {paint.alpha=((1-fraction)*255).toInt();canvas.drawBitmap(image,null,target,paint);paint.alpha=255;return}
         val saved=canvas.save()
         if(direction<0) {canvas.translate(w,0f);canvas.scale(-1f,1f)}

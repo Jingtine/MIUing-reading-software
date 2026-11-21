@@ -1,7 +1,7 @@
 /* Application-owned renderer. Book-authored scripts remain blocked by CSP. */
 (() => {
   if (window.miuingConfigure) return;
-  let config, shell, flow, restoring = false, timer, selectionTimer, sx = 0, sy = 0, suppressTouchClick = false, touchAt = 0, selectedAtTouch = false;
+  let config, shell, flow, restoring = false, timer, selectionTimer;
   let retainedAnchor = -1, publishedAnchor = -1, layoutRevision = 0;
   let hasPosition = false, pendingInitial = null;
   let ownedScroll = null;
@@ -21,7 +21,7 @@
     return Math.max(0, config.scrolling ? shell.scrollHeight - shell.clientHeight : shell.scrollWidth - shell.clientWidth);
   }
   window.miuingProgress = () => extent() ? (config.scrolling ? shell.scrollTop : shell.scrollLeft) / extent() : 0;
-  function beginNavigation() {retainedAnchor=-1;layoutRevision++;restoring=false;hasPosition=true;pendingInitial=null;clearTimeout(timer);}
+  function beginNavigation() {gestures.cancel();retainedAnchor=-1;layoutRevision++;restoring=false;hasPosition=true;pendingInitial=null;clearTimeout(timer);}
   function scrollReader(left,top) {
     shell.scrollTo(left,top);
     // Scroll events can arrive after restoration's last animation frame.
@@ -91,6 +91,7 @@
   window.miuingConfigure = next => {
     const textChanged = textIndex && textIndex.flushChanges();
     if (config && !textChanged && JSON.stringify(config) === JSON.stringify(next)) return;
+    gestures.cancel();
     const previous = config && hasPosition ? { anchor: retainedAnchor>=0?retainedAnchor:window.miuingAnchor(), position: window.miuingProgress() } : null;
     if(!config) pendingInitial={anchor:next.anchor>=0?next.anchor:-1,fragment:next.fragment || '',position:next.position || 0,search:next.search || ''};
     const destination=previous || pendingInitial || {anchor:-1,position:0,fragment:''};
@@ -151,6 +152,7 @@
       requestAnimationFrame(()=>{
         if(revision!==layoutRevision) return;
         restoring=false;publish();
+        if(typeof MIUing.ready==='function') MIUing.ready();
         // Publisher fonts may finish after the first layout. Refresh metrics
         // for this configuration without writing progress or undoing navigation.
         if(document.fonts) document.fonts.ready.then(()=>requestAnimationFrame(()=>{
@@ -200,25 +202,16 @@
     else if (typeof MIUing.turn === 'function') MIUing.turn(direction);
     else window.miuingAdvance(direction);
   }
-  document.addEventListener('pointerdown', () => { suppressTouchClick=false; }, { passive:true });
-  document.addEventListener('touchstart', e => {
-    suppressTouchClick=false;
-    sx = e.changedTouches[0].clientX; sy = e.changedTouches[0].clientY; touchAt=Date.now();
-    selectedAtTouch=!!getSelection().toString();
-  }, { passive:true });
-  document.addEventListener('touchend', e => {
-    if (!config || config.scrolling || e.target.closest('a')) return;
-    if (selectedAtTouch || getSelection().toString()) {suppressTouchClick=true;return;}
-    const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
-    if (Math.abs(dx)>55 && Math.abs(dx)>Math.abs(dy)) { suppressTouchClick=true;turn(dx<0?1:-1); e.preventDefault(); }
-    else if (Date.now()-touchAt>600) suppressTouchClick=true;
-  }, { passive:false });
-  document.addEventListener('click', e => {
-    // Keep suppressing this touch's click even if rendering delays its delivery.
-    // A new pointer/touch resets the latch; detail=0 activates via keyboard/AT.
-    if (!config || (suppressTouchClick && e.detail!==0) || e.target.closest('a') || getSelection().toString()) return;
-    if (!config.scrolling && e.clientX<config.width*.22) turn(-1);
-    else if (!config.scrolling && e.clientX>config.width*.78) turn(1);
-    else MIUing.tap();
+  const gestures=new window.MIUingReaderGestures({
+    config:()=>config,revision:()=>layoutRevision,turn,advance:direction=>window.miuingAdvance(direction),
+    target:direction=>{
+      if(!config || restoring || config.scrolling || getSelection().toString()) return null;
+      const max=extent(),at=shell.scrollLeft;
+      if(direction>0 && max-at<=1) return config.hasNextChapter?{chapterDelta:1,position:0}:null;
+      if(direction<0 && at<=1) return config.hasPreviousChapter?{chapterDelta:-1,position:1}:null;
+      const next=direction>0 && max-at<=config.width+1?max:direction<0 && at<=config.width+1?0:Math.max(0,Math.min(max,(Math.round(at/config.width)+direction)*config.width));
+      return {chapterDelta:0,position:max?next/max:0};
+    }
   });
+  window.miuingFinishDrag=(id,commit)=>gestures.finish(id,commit);
 })();
