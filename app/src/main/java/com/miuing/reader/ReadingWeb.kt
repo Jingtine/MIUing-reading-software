@@ -25,6 +25,8 @@ internal class ReadingBridge(
     var onDragMove:(Int,Float)->Unit={_,_->}
     var onDragEnd:(Int,Boolean)->Unit={_,_->}
     var onDragAbort:(Int)->Unit={}
+    var onPagination:(String,ChapterPageRange)->Unit={_,_->}
+    var onCounted:(Int,Int)->Unit={_,_->}
     private fun dispatch(block:()->Unit) {main.post {if(active) block()}}
     @JavascriptInterface fun progress(p:Float,anchor:Int)=dispatch {if(p.isFinite()) location(p,anchor)}
     @JavascriptInterface fun pages(current:Int,total:Int)=dispatch {if(total>0 && current in 1..total) pages(ReaderPageInfo(current,total))}
@@ -39,6 +41,11 @@ internal class ReadingBridge(
     @JavascriptInterface fun dragMove(id:Int,progress:Float)=dispatch {if(progress.isFinite()) onDragMove(id,progress.coerceIn(0f,1f))}
     @JavascriptInterface fun dragEnd(id:Int,commit:Boolean)=dispatch {onDragEnd(id,commit)}
     @JavascriptInterface fun dragAbort(id:Int)=dispatch {onDragAbort(id)}
+    @JavascriptInterface fun pagination(key:String,first:Int,last:Int,total:Int)=dispatch {
+        val range=ChapterPageRange(first,last,total)
+        if(key.length<=256 && range.valid && total<=1_000_000) onPagination(key,range)
+    }
+    @JavascriptInterface fun counted(token:Int,total:Int)=dispatch {if(token>0 && total in 1..1_000_000) onCounted(token,total)}
 }
 
 /** Use a concrete interface type so Android lint can validate the JS boundary. */

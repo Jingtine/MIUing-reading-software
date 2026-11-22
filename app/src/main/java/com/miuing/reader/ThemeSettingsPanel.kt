@@ -159,6 +159,11 @@ import kotlinx.coroutines.launch
                                     ThemeSpacing("词间距","词间距",draft.wordSpacing,0f..0.5f) {draft=draft.copy(wordSpacing=it)}
                                     ThemeSpacing("页边空白","页边距",draft.margin,12f..48f) {draft=draft.copy(margin=it)}
                                     ThemeToggle("使文本两端对齐",draft.justify,{draft=draft.copy(justify=it)})
+                                    ThemeToggle("中文排版",draft.chineseLayout,{draft=draft.copy(chineseLayout=it)})
+                                    if(draft.chineseLayout) {
+                                        ThemeSpacing("首行缩进","首行缩进",draft.firstLineIndent,0f..3f,valueLabel="%.1f 字".format(java.util.Locale.ROOT,draft.firstLineIndent)) {draft=draft.copy(firstLineIndent=it)}
+                                        ThemeSpacing("段间距","段间距",draft.paragraphSpacing,0f..1.5f,valueLabel="%.1f 倍字号".format(java.util.Locale.ROOT,draft.paragraphSpacing)) {draft=draft.copy(paragraphSpacing=it)}
+                                    }
                                 }
                                 TextButton(onClick={draft=ThemeOptions.defaults(themeIndex)},modifier=Modifier.fillMaxWidth().padding(top=12.dp,bottom=8.dp)) {Text("还原主题",color=ink)}
                             }
@@ -180,8 +185,11 @@ import kotlinx.coroutines.launch
     }
 }
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable private fun ThemeSpacing(label:String,description:String,value:Float,range:ClosedFloatingPointRange<Float>,onChange:(Float)->Unit) {
-    Text(label,Modifier.padding(top=12.dp),fontSize=14.sp)
+@Composable private fun ThemeSpacing(label:String,description:String,value:Float,range:ClosedFloatingPointRange<Float>,valueLabel:String?=null,onChange:(Float)->Unit) {
+    Row(Modifier.fillMaxWidth().padding(top=12.dp),horizontalArrangement=Arrangement.SpaceBetween) {
+        Text(label,fontSize=14.sp)
+        if(valueLabel!=null) Text(valueLabel,fontSize=14.sp,color=LocalContentColor.current.copy(alpha=.6f))
+    }
     val ink=LocalContentColor.current
     Slider(value,onChange,valueRange=range,modifier=Modifier.fillMaxWidth().semantics {contentDescription=description},
         thumb={Box(Modifier.size(18.dp).background(ink,CircleShape))},track={

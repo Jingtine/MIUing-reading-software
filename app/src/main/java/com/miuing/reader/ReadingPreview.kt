@@ -22,6 +22,7 @@ internal class ReadingPreview(context:Context,val spec:ReadingPreviewSpec,attach
     private var failed=false
     private var request=0
     private var pending:(()->Unit)?=null
+    private var measured:((Int)->Unit)?=null
     init {
         configureReadingWeb(view,bridge)
         view.settings.offscreenPreRaster=true
@@ -29,6 +30,7 @@ internal class ReadingPreview(context:Context,val spec:ReadingPreviewSpec,attach
         view.importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
         view.setBackgroundColor(android.graphics.Color.parseColor(JSONObject(spec.configuration).getString("paper")))
         bridge.onReady={ready=true;pending?.invoke()}
+        bridge.onCounted={id,total->if(!closed && id==request) {val callback=measured;measured=null;callback?.invoke(total)}}
         attach(view)
         view.webViewClient=readingClient(spec.loader,{v->
             if(!closed) v.evaluateJavascript(spec.script+"\nwindow.miuingConfigure(${spec.configuration});",null)
@@ -42,6 +44,7 @@ internal class ReadingPreview(context:Context,val spec:ReadingPreviewSpec,attach
         }
     }
     fun seek(position:Double,onFrame:(WebView)->Unit,onFailure:()->Unit) {
+        measured=null
         val id=++request
         val action={
             if(!closed && id==request) {
@@ -56,7 +59,17 @@ internal class ReadingPreview(context:Context,val spec:ReadingPreviewSpec,attach
         }
         pending=action;action()
     }
-    fun cancelSeek() {request++;pending=null}
+    fun measurePages(onMeasured:(Int)->Unit,onFailure:()->Unit) {
+        val id=++request;measured=onMeasured
+        val action={
+            if(!closed && id==request) {
+                if(failed) onFailure()
+                else if(ready) {pending=null;view.evaluateJavascript("window.miuingCountPages($id)",null)}
+            }
+        }
+        pending=action;action()
+    }
+    fun cancelSeek() {request++;pending=null;measured=null}
     fun close() {
         if(closed) return
         closed=true;cancelSeek();scope.cancel();destroyReadingWeb(view,bridge)

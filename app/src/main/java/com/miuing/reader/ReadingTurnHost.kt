@@ -15,6 +15,15 @@ internal class ReadingTurnHost(context:Context):FrameLayout(context) {
     private var gesture:Gesture?=null
     private var handoff:String?=null
     private var closed=false
+    private var sourceReady=false
+    private var viewportWidth=0
+    private var viewportHeight=0
+    private var layoutKey=""
+    private data class Measurement(val token:Any,val done:(Int?)->Unit)
+    private var measurement:Measurement?=null
+    var measurementStarts=0
+        private set
+    val busy get()=closed || !sourceReady || main==null || gesture!=null || handoff!=null || overlay.visibility==VISIBLE
     private class Gesture(val web:WebView,val id:Int,val direction:Int,val target:ReadingPreviewSpec) {
         var progress=0f;var release:Boolean?=null;var sourceReady=false;var targetReady=false
         var targetFrame:Bitmap?=null;var settling=false;var failed=false
@@ -29,23 +38,68 @@ internal class ReadingTurnHost(context:Context):FrameLayout(context) {
 
     fun bind(web:WebView,path:String) {
         if(main===web) return
+        cancelMeasurement()
         if(handoff!=path) {handoff=null;reset()}
+        sourceReady=false
         main?.let {removeView(it)};main=web;document=path
         addView(web,0,LayoutParams(-1,-1))
     }
     fun unbind(web:WebView) {
         if(main!==web) return
+        sourceReady=false;cancelMeasurement()
         if(handoff==null) reset()
         main=null;removeView(web)
     }
     fun ready(web:WebView) {
-        if(main!==web || handoff!=document) return
+        if(main!==web) return
+        sourceReady=true
+        if(handoff!=document) return
         web.afterReadingPaint {if(main===web && handoff==document) {handoff=null;reset()}}
     }
-    fun invalidateLayout() {handoff=null;reset();preview?.close();preview=null}
-    fun configure(web:WebView) {if(main===web && handoff==null) invalidateLayout()}
+    fun invalidateLayout() {cancelMeasurement();handoff=null;reset();preview?.close();preview=null}
+    fun viewportChanged(width:Int,height:Int):Boolean {
+        if(width==viewportWidth && height==viewportHeight) return false
+        viewportWidth=width;viewportHeight=height;invalidateLayout();return true
+    }
+    fun configure(web:WebView,key:String) {
+        if(main!==web) return
+        if(layoutKey!=key) {sourceReady=false;layoutKey=key}
+        if(handoff==null) invalidateLayout()
+    }
+    private fun passive(spec:ReadingPreviewSpec):ReadingPreview? {
+        if(preview?.spec==spec) return preview
+        preview?.close();preview=null
+        preview=runCatching {ReadingPreview(context,spec) {v->
+            addView(v,1,LayoutParams(width,height))
+            v.measure(MeasureSpec.makeMeasureSpec(width,MeasureSpec.EXACTLY),MeasureSpec.makeMeasureSpec(height,MeasureSpec.EXACTLY))
+            v.layout(0,0,width,height)
+        }}.getOrNull()
+        return preview
+    }
+    fun measure(spec:ReadingPreviewSpec,done:(Int?)->Unit):Any? {
+        if(busy || measurement!=null) return null
+        val task=Measurement(Any(),done);measurement=task;measurementStarts++
+        val view=passive(spec)
+        if(view==null) {completeMeasurement(task,-1);return task.token}
+        view.measurePages({total->completeMeasurement(task,total)},{completeMeasurement(task,-1)})
+        return task.token
+    }
+    private fun completeMeasurement(task:Measurement,total:Int?) {
+        if(measurement!==task) return
+        measurement=null;preview?.close();preview=null;task.done(total)
+    }
+    fun cancelMeasurement(token:Any?=null) {
+        val task=measurement ?: return
+        if(token!=null && task.token!==token) return
+        completeMeasurement(task,null)
+    }
+    fun releaseIdlePreview() {cancelMeasurement();if(gesture==null && handoff==null) {preview?.close();preview=null}}
+    fun turn(web:WebView,mode:String,direction:Int,paper:Int,advance:(()->Unit)->Unit) {
+        cancelMeasurement();overlay.turn(web,mode,direction,paper,advance)
+    }
     fun begin(web:WebView,id:Int,direction:Int,position:Double,spec:ReadingPreviewSpec,paper:Int) {
         if(closed || main!==web || handoff!=null) return
+        cancelMeasurement()
         reset()
         val g=Gesture(web,id,direction,spec);gesture=g
         postDelayed(timeout,3000)
@@ -58,15 +112,7 @@ internal class ReadingTurnHost(context:Context):FrameLayout(context) {
             g.targetFrame?.let {overlay.targetFrame(it);g.targetFrame=null}
             overlay.dragTo(g.progress);settle(g)
         }
-        if(preview?.spec!=spec) {
-            preview?.close();preview=null
-            preview=runCatching {ReadingPreview(context,spec) {v->
-                addView(v,1,LayoutParams(width,height))
-                v.measure(MeasureSpec.makeMeasureSpec(width,MeasureSpec.EXACTLY),MeasureSpec.makeMeasureSpec(height,MeasureSpec.EXACTLY))
-                v.layout(0,0,width,height)
-            }}.getOrNull()
-        }
-        val passive=preview
+        val passive=passive(spec)
         if(passive==null) {g.failed=true;settle(g);return}
         passive.seek(position,{v->
             if(gesture===g && !g.failed) {
@@ -115,5 +161,5 @@ internal class ReadingTurnHost(context:Context):FrameLayout(context) {
         gesture?.targetFrame?.recycle();gesture=null
         preview?.cancelSeek();overlay.clear()
     }
-    fun close() {if(closed) return;closed=true;handoff=null;reset();preview?.close();preview=null;main=null}
+    fun close() {if(closed) return;closed=true;cancelMeasurement();handoff=null;reset();preview?.close();preview=null;main=null}
 }

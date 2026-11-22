@@ -24,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun ReaderScreen(initial:Book,store:LibraryStore,onClose:()->Unit) {
@@ -39,6 +40,10 @@ import kotlinx.coroutines.CancellationException
     var controls by rememberSaveable { mutableStateOf(true) }
     var menuOpen by rememberSaveable { mutableStateOf(false) }
     var pages by remember(chapter) { mutableStateOf<ReaderPageInfo?>(null) }
+    var pagination by remember(initial.id) {mutableStateOf<BookPaginationState?>(null)}
+    var menuPageMap by remember(initial.id) {mutableStateOf<BookPageMap?>(null)}
+    var menuLayoutKey by remember(initial.id) {mutableStateOf<String?>(null)}
+    var menuProgress by remember(initial.id) {mutableFloatStateOf(initial.position)}
     var panel by remember { mutableStateOf<ReaderPanel?>(null) }
     var search by remember { mutableStateOf("") }
     var searchTarget by rememberSaveable(initial.id) { mutableStateOf("") }
@@ -154,6 +159,14 @@ import kotlinx.coroutines.CancellationException
         val marks = if (existing != null) current.marks - existing else current.marks + Mark(chapter, position, "${chapter + 1} · ${(position * 100).toInt()}%", anchor)
         store.update(current.copy(marks = marks))
     }
+    fun openReadingMenu() {
+        val current=pagination?.takeIf {it.chapter==chapter && !scrolling}
+        val info=current?.map?.locate(chapter,current.range)
+        menuPageMap=current?.map?.takeIf {info!=null}
+        menuLayoutKey=current?.key;menuProgress=info?.progress ?: current?.range?.position(current.map.columns) ?: position
+        menuOpen=true
+    }
+    LaunchedEffect(pagination?.key) {if(menuOpen && menuLayoutKey!=null && pagination?.key!=menuLayoutKey) menuOpen=false}
     val selectionActions: @Composable () -> Unit = {
                 if(selection.isNotBlank()) Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.Center) {
                     TextButton(onClick={val b=store.current(book.id);store.update(b.copy(notes=b.notes+Note(chapter,selection,start=selectedRange.start,end=selectedRange.end)));selection=""}) { Text("高亮标记") }
@@ -196,10 +209,11 @@ import kotlinx.coroutines.CancellationException
                             onChapter={next -> if(next in p.chapters.indices) { searchTarget="";savePosition(next,if(next<safeChapter) 1f else 0f);jump++ } },
                             anchor=anchor,fragment=fragment,lineHeight=effectiveOptions.lineHeight,margin=effectiveOptions.margin,letterSpacing=effectiveOptions.letterSpacing,pageTurn=pageTurn,
                             fontFamily=options.font,boldText=options.bold,wordSpacing=effectiveOptions.wordSpacing,justify=effectiveOptions.justify,customLayout=options.customLayout,
+                            chineseLayout=effectiveOptions.chineseLayout,firstLineIndent=effectiveOptions.firstLineIndent,paragraphSpacing=effectiveOptions.paragraphSpacing,
                             onLocation={progress,at->if(jump==readerJump) {saveLocated(safeChapter,progress,at);locationAvailable=true}},
                             onLoadError={if(jump==readerJump) locationAvailable=false},
                             onSelectionRange={ if(panel?.editsNote != true) {selectedRange=it;selection=it.text} },
-                            onLink={next,target->navigate(next,target=target)},onPages={pages=it})
+                            onLink={next,target->navigate(next,target=target)},onPages={pages=it},onPagination={pagination=it})
                     }
                 } ?: CircularProgressIndicator(color=Accent)
             }
@@ -214,16 +228,16 @@ import kotlinx.coroutines.CancellationException
     }
     if (controls && book.format != "PDF") {
         Box(Modifier.fillMaxSize().systemBarsPadding()) {
-            TextReaderChrome(theme, chapter, position, pages, scrolling, onClose, { menuOpen = true }, selectionActions,
+            TextReaderChrome(theme, chapter, position, pages, scrolling, onClose, ::openReadingMenu, selectionActions,
                 onReturn=if(history.isEmpty()) null else ::returnToSource,returnEnabled=locationAvailable!=null,
-                returnLabel=history.lastOrNull()?.let { "第 ${it.chapter+1} 章" } ?: "返回")
+                returnLabel=history.lastOrNull()?.let { "第 ${it.chapter+1} 章" } ?: "返回",pagination=pagination)
         }
     }
     SnackbarHost(snackbar,Modifier.align(Alignment.BottomCenter).navigationBarsPadding()) }
     if (menuOpen && book.format != "PDF") {
         ReadingMenu(
             title = book.title, theme = theme, chapter = chapter, chapterCount = publication?.chapters?.size ?: 0,
-            position = position, bookmarked = book.marks.any { it.chapter == chapter && kotlin.math.abs(it.position - position) < .015f },
+            position = menuProgress, bookmarked = book.marks.any { it.chapter == chapter && kotlin.math.abs(it.position - position) < .015f },
             onDismiss = { menuOpen = false },
             onPanel = { menuOpen = false; panel = it },
             onThemes = { menuOpen = false; themeOpen = true },
@@ -233,7 +247,15 @@ import kotlinx.coroutines.CancellationException
                     navigate(next); menuOpen = false
                 }
             },
-            onSeek = { navigate(chapter,it); menuOpen = false }
+            onSeek = {fraction ->
+                val map=menuPageMap
+                if(map!=null) {
+                    val total=map.total!!
+                    val target=map.target(1+(fraction.coerceIn(0f,1f)*(total-1)).roundToInt())
+                    if(target!=null && pagination?.key==menuLayoutKey) navigate(target.chapter,target.position)
+                } else navigate(chapter,fraction)
+                menuOpen=false
+            },progressScope=if(menuPageMap!=null) "全书" else "本章"
         )
     }
     if(themeOpen) ThemeSettingsPanel(themeIndex,options,fontSize,scrolling,pageTurn,brightness,appearance,book.format=="PDF",

@@ -38,7 +38,8 @@ fun ReadingMenu(
     onThemes: () -> Unit,
     onBookmark: () -> Unit,
     onChapter: (Int) -> Unit,
-    onSeek: (Float) -> Unit
+    onSeek: (Float) -> Unit,
+    progressScope:String="本章"
 ) {
     var preview by rememberSaveable(chapter) { mutableFloatStateOf(position) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
@@ -66,7 +67,7 @@ fun ReadingMenu(
                         MenuAction(if (bookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, if (bookmarked) "移除书签" else "添加书签", onClick = onBookmark)
                         MenuAction(Icons.Default.EditNote, "高亮标记和笔记") { onPanel(ReaderPanel.Notes) }
                         HorizontalDivider(Modifier.padding(vertical = 10.dp), color = theme.ink.copy(alpha = .12f))
-                        Text("第 ${chapter + 1} / ${chapterCount.coerceAtLeast(1)} 章 · ${(preview * 100).toInt()}%", fontSize = 12.sp, color = theme.ink)
+                        Text("第 ${chapter+1} / ${chapterCount.coerceAtLeast(1)} 章 · $progressScope ${(preview*100).toInt()}%", fontSize = 12.sp, color = theme.ink)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { onChapter(chapter - 1) }, enabled = chapter > 0) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "上一章") }
                             Slider(

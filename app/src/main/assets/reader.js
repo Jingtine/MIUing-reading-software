@@ -5,8 +5,26 @@
   let retainedAnchor = -1, publishedAnchor = -1, layoutRevision = 0;
   let hasPosition = false, pendingInitial = null;
   let ownedScroll = null;
+  let resourcesSettled=false;
   const publisherTextStyles = new Map();
   let textIndex;
+  const chineseTypography=new window.MIUingChineseTypography();
+  const pagination=new window.MIUingPagination();
+  window.miuingPageMetrics=()=>shell?pagination.pages(shell,config):null;
+  window.miuingCountPages=token=>{
+    const requested=config;
+    Promise.all([document.fonts?document.fonts.ready:Promise.resolve(),waitForImages()]).then(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      if(config!==requested || restoring) return;
+      pagination.measure(shell,flow,config);
+      const metrics=window.miuingPageMetrics();
+      if(metrics && typeof MIUing.counted==='function') MIUing.counted(token,metrics.total);
+    })));
+  };
+  function waitForImages() {
+    return Promise.all(Array.from(flow.querySelectorAll('img')).map(img=>img.complete?Promise.resolve():new Promise(resolve=>{
+      img.addEventListener('load',resolve,{once:true});img.addEventListener('error',resolve,{once:true});
+    })));
+  }
   window.miuingAnchor = () => {
     if (!shell) return -1;
     const box = shell.getBoundingClientRect(), step = Math.max(12, config.fontSize);
@@ -50,10 +68,11 @@
   }
   window.miuingJumpAnchor = offset => {beginNavigation();retainedAnchor=offset;jumpAnchor(offset);publish();};
   function publishPages() {
-    if(config.scrolling || typeof MIUing.pages!=='function') return;
-    const total=Math.ceil(extent()/config.width)+1;
-    const current=extent()-shell.scrollLeft<=1?total:Math.min(total,Math.floor((shell.scrollLeft+1)/config.width)+1);
-    MIUing.pages(current,total);
+    if(config.scrolling) return;
+    const metrics=window.miuingPageMetrics();
+    if(!metrics) return;
+    if(typeof MIUing.pages==='function') MIUing.pages(metrics.spread,metrics.spreads);
+    if(resourcesSettled && typeof MIUing.pagination==='function') MIUing.pagination(config.paginationKey || '',metrics.first,metrics.last,metrics.total);
   }
   function publish() {
     if (restoring) return;
@@ -100,6 +119,8 @@
     config = next; window.miuingConfig = next;
     window.miuingWidth = next.width; window.miuingHeight = next.height;
     restoring = true;
+    resourcesSettled=false;
+    pagination.reset();
     if (!flow) {
       flow = document.createElement('main'); flow.id = 'miuing-content';
       while (document.body.firstChild) flow.appendChild(document.body.firstChild);
@@ -128,14 +149,36 @@
     style.textContent = `
       html,body{margin:0!important;padding:0!important;width:${w}px!important;height:${h}px!important;overflow:hidden!important;background:${next.paper}!important;color:${next.ink}!important}
       body{font-size:${next.fontSize}px!important;${layoutCss}${fontCss}${next.bold?'font-weight:700!important;':''}overflow-wrap:break-word}
-      #miuing-scroll{width:${w}px;height:${h}px;overflow-x:hidden;overflow-y:${next.scrolling?'auto':'hidden'};scrollbar-width:none}
+      #miuing-scroll{position:relative;width:${w}px;height:${h}px;overflow-x:hidden;overflow-y:${next.scrolling?'auto':'hidden'};scrollbar-width:none}
       #miuing-content{box-sizing:content-box;width:${available}px;margin:${m}px;${next.scrolling?`max-width:760px;margin:${m}px auto;padding:0 ${m}px;`:`height:${h-2*m}px;column-width:${column}px;column-gap:${2*m}px;column-fill:auto;`}}
       p{font-size:inherit!important;${next.customLayout===false?'':'line-height:inherit!important;letter-spacing:inherit!important;word-spacing:inherit!important;'}color:inherit!important;${next.justify?'text-align:justify!important;':''}}img,svg{max-width:100%!important;max-height:${h-2*m}px!important;object-fit:contain}mark[data-miuing]{background:#e8ce6c;color:inherit}mark[data-miuing-search]{background:#ffb95b;color:#222}
     `;
     textIndex.highlights(next.notes || [], next.search || '');
-    textStyleOverrides(family,next);
+    chineseTypography.restore();textStyleOverrides(family,next);chineseTypography.apply(flow,next);
+    for(const img of flow.querySelectorAll('img')) if(img.loading==='lazy') img.loading='eager';
+    let imagesPendingOnLayout=false;
+    let resourcesPendingOnLayout=false;
+    // Lazy intrinsic images can finish after onPageFinished. Count only stable
+    // resources globally, and restore the latest passage rather than the opening one.
+    Promise.all([document.fonts?document.fonts.ready:Promise.resolve(),waitForImages()]).then(()=>{
+      const refresh=()=>{
+        if(config!==next) return;
+        if(restoring) {requestAnimationFrame(refresh);return;}
+        if(document.fonts && document.fonts.status==='loading') {document.fonts.ready.then(()=>requestAnimationFrame(refresh));return;}
+        if(imagesPendingOnLayout) {gestures.cancel();layoutRevision++;}
+        const latest=retainedAnchor>=0?retainedAnchor:publishedAnchor;
+        pagination.measure(shell,flow,config);
+        if(document.fonts && document.fonts.status==='loading') {document.fonts.ready.then(()=>requestAnimationFrame(refresh));return;}
+        if(resourcesPendingOnLayout && latest>=0) jumpAnchor(latest);
+        resourcesSettled=true;publishPages();
+      };
+      requestAnimationFrame(()=>requestAnimationFrame(refresh));
+    });
     const finishLayout=()=>requestAnimationFrame(() => requestAnimationFrame(() => {
       if(revision!==layoutRevision) return;
+      pagination.measure(shell,flow,config);
+      imagesPendingOnLayout=Array.from(flow.querySelectorAll('img')).some(img=>!img.complete);
+      resourcesPendingOnLayout=imagesPendingOnLayout || !!(document.fonts && document.fonts.status==='loading');
       if (previous && previous.anchor >= 0) jumpAnchor(previous.anchor);
       else if (!previous && destination.fragment && document.getElementById(destination.fragment)) {retainedAnchor=-1;locateRect(document.getElementById(destination.fragment).getBoundingClientRect());}
       else if (destination.anchor >= 0) jumpAnchor(destination.anchor);
@@ -153,11 +196,6 @@
         if(revision!==layoutRevision) return;
         restoring=false;publish();
         if(typeof MIUing.ready==='function') MIUing.ready();
-        // Publisher fonts may finish after the first layout. Refresh metrics
-        // for this configuration without writing progress or undoing navigation.
-        if(document.fonts) document.fonts.ready.then(()=>requestAnimationFrame(()=>{
-          if(config===next && !restoring) publishPages();
-        }));
       });
     }));
     // A body-font choice must restore its passage using the final glyph metrics.
@@ -168,6 +206,7 @@
           // Keep the newer navigation passage visible after glyphs reflow;
           // do not restore the older destination or write progress again.
           const latest=retainedAnchor>=0?retainedAnchor:publishedAnchor;
+          pagination.measure(shell,flow,config);
           if(latest>=0) jumpAnchor(latest);
           publishPages();
         }

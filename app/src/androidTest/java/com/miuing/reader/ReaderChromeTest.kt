@@ -32,6 +32,25 @@ import java.util.zip.ZipOutputStream
 class ReaderChromeTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val device = UiDevice.getInstance(instrumentation)
+    private fun storedBook(id:String):Book {
+        val context=instrumentation.targetContext
+        if(android.os.Looper.myLooper()==android.os.Looper.getMainLooper()) return LibraryStore(context).current(id)
+        lateinit var result:Book;instrumentation.runOnMainSync {result=LibraryStore(context).current(id)};return result
+    }
+    private fun awaitWholeProgress(minimum:Double=0.0,maximum:Double=1.0) {
+        val deadline=System.currentTimeMillis()+15000
+        while(System.currentTimeMillis()<deadline) {
+            val label=device.findObject(By.descStartsWith("全书第 "))?.contentDescription
+            val match=label?.let {Regex("全书第 (\\d+)(?: 至 (\\d+))? 页，共 (\\d+) 页").matchEntire(it)}
+            if(match!=null) {
+                val first=match.groupValues[1].toDouble();val last=match.groupValues[2].toDoubleOrNull() ?: first;val total=match.groupValues[3].toDouble()
+                val progress=if(last>=total || total<=1) 1.0 else (first-1)/(total-1)
+                if(progress in minimum..maximum) return
+            }
+            Thread.sleep(50)
+        }
+        fail("Whole-book progress did not reach $minimum..$maximum")
+    }
 
     private fun web(view: View): WebView? {
         if (view is WebView) return view
@@ -282,7 +301,7 @@ class ReaderChromeTest {
         action("阅读菜单").click()
         action("添加书签").click()
         text("移除书签")
-        assertEquals(1, LibraryStore(instrumentation.targetContext).current(book.id).marks.size)
+        assertEquals(1, storedBook(book.id).marks.size)
         screenshot(scenario, "text-reader-menu.png")
         assertPaperMargins(scenario, "text-reader-menu.png", minimum = 40)
         text("主题与设置").click()
@@ -326,19 +345,20 @@ class ReaderChromeTest {
     }
 
     @Test fun menuSeekPersistsTheActualAnchorAndBookmarkRestoresIt() = reader { scenario, _, book ->
+        awaitWholeProgress()
         action("阅读菜单").click()
         val slider = action("阅读进度").visibleBounds
         device.click(slider.left + slider.width() * 55 / 100, slider.centerY())
         assertTrue(device.wait(Until.gone(By.desc("关闭阅读菜单")), 5000))
-        await(scenario, "window.miuingProgress()>.3 && window.miuingProgress()<.7")
+        awaitWholeProgress(.3,.7)
         Thread.sleep(250)
         val anchor = js(scenario, "window.miuingAnchor()").toInt()
         assertTrue(anchor > 100)
-        assertEquals("Slider seek persisted a different passage", anchor, LibraryStore(instrumentation.targetContext).current(book.id).anchor)
+        assertEquals("Slider seek persisted a different passage", anchor, storedBook(book.id).anchor)
         action("阅读菜单").click()
         action("添加书签").click()
         action("移除书签")
-        val saved = LibraryStore(instrumentation.targetContext).current(book.id).marks.single()
+        val saved = storedBook(book.id).marks.single()
         assertEquals("Bookmark lost the actual text anchor", anchor, saved.anchor)
         action("关闭阅读菜单").click()
         js(scenario, "window.miuingJump(0)")
@@ -347,7 +367,7 @@ class ReaderChromeTest {
         action("目录与书签").click()
         text("书签").click()
         text(saved.label).click()
-        await(scenario, "window.miuingProgress()>.3")
+        await(scenario, "!!window.miuingConfig && window.miuingConfig.anchor===${saved.anchor} && window.miuingAnchor()>100")
         screenshot(scenario, "bookmark-restored.png")
         val restored = js(scenario, "window.miuingAnchor()").toInt()
         assertTrue("Bookmark did not return to the selected passage: saved=${saved.anchor}, restored=$restored", kotlin.math.abs(restored - saved.anchor) <= 5)
@@ -392,7 +412,7 @@ class ReaderChromeTest {
         js(scenario, "window.miuingJump(.35)")
         await(scenario, "window.miuingProgress()>.2")
         Thread.sleep(250)
-        val origin = LibraryStore(instrumentation.targetContext).current(book.id).anchor
+        val origin = storedBook(book.id).anchor
         val viewport = js(scenario, "JSON.stringify([window.miuingWidth,window.miuingHeight])")
         assertTrue(origin > 100)
         assertNull("Ordinary movement added history", device.findObject(By.desc("返回跳转前位置")))
@@ -405,7 +425,7 @@ class ReaderChromeTest {
         await(scenario, "!!document.getElementById('chapter1') && !!window.miuingConfig")
         js(scenario, "window.miuingJump(.3)")
         Thread.sleep(250)
-        val second = LibraryStore(instrumentation.targetContext).current(book.id).anchor
+        val second = storedBook(book.id).anchor
         action("阅读菜单").click()
         action("目录与书签").click()
         text("第一章").click()
@@ -431,14 +451,15 @@ class ReaderChromeTest {
         js(scenario, "window.miuingJump(.25)")
         await(scenario,"window.miuingProgress()>.15")
         val savedDeadline=System.currentTimeMillis()+5000
-        while(LibraryStore(instrumentation.targetContext).current(book.id).anchor<=100 && System.currentTimeMillis()<savedDeadline) Thread.sleep(40)
-        val origin = LibraryStore(instrumentation.targetContext).current(book.id).anchor
+        while(storedBook(book.id).anchor<=100 && System.currentTimeMillis()<savedDeadline) Thread.sleep(40)
+        val origin = storedBook(book.id).anchor
         val viewport = js(scenario,"JSON.stringify([window.miuingWidth,window.miuingHeight])")
         assertTrue("Origin=$origin, glyph=${js(scenario,"window.miuingAnchor()")}, progress=${js(scenario,"window.miuingProgress()")}",origin > 100)
+        awaitWholeProgress()
         action("阅读菜单").click()
         val slider = action("阅读进度").visibleBounds
         device.click(slider.left + slider.width() * 75 / 100, slider.centerY())
-        await(scenario, "window.miuingProgress()>.5")
+        awaitWholeProgress(.65,1.0)
         val back = action("返回跳转前位置").visibleBounds
         val close = action("返回书库").visibleBounds
         assertTrue("Original return entry belongs at the top left",back.centerX()<device.displayWidth*.25 && back.centerY()<device.displayHeight*.2)
@@ -448,7 +469,7 @@ class ReaderChromeTest {
         action("返回跳转前位置").click()
         await(scenario, "!!window.miuingConfig && window.miuingConfig.anchor===$origin")
         Thread.sleep(250)
-        assertEquals(origin, LibraryStore(instrumentation.targetContext).current(book.id).anchor)
+        assertEquals(origin, storedBook(book.id).anchor)
         assertTrue(device.wait(Until.gone(By.desc("返回跳转前位置")), 5000))
     }
 
@@ -467,26 +488,26 @@ class ReaderChromeTest {
     @Test fun searchTypingKeepsSourceAndSelectedHitReturnsAfterRecreation() = reader { scenario, _, book ->
         js(scenario, "window.miuingJump(.25)")
         Thread.sleep(300)
-        val origin = LibraryStore(instrumentation.targetContext).current(book.id).anchor
+        val origin = storedBook(book.id).anchor
         val expected = js(scenario, "(()=>{const r=document.createRange();r.selectNodeContents(document.getElementById('miuing-content'));r.setEnd(document.querySelector('#p100 span'),0);return r.toString().length})()").toInt()
         action("阅读菜单").click()
         action("在图书中搜索").click()
         device.wait(Until.findObject(By.clazz("android.widget.EditText")), 5000)!!.text = "定位0 [a+b] & 😀"
         assertNotNull(device.wait(Until.findObject(By.desc("文字搜索结果 第 1 章")), 5000))
         Thread.sleep(300)
-        assertEquals("Typing moved the source passage", origin, LibraryStore(instrumentation.targetContext).current(book.id).anchor)
+        assertEquals("Typing moved the source passage", origin, storedBook(book.id).anchor)
         clickSearchResult()
         await(scenario, "!!window.miuingConfig && !!document.querySelector('[data-miuing-search]')")
         // Marks are installed synchronously; restoration and the native bridge
         // publish after animation frames. Wait for the actual saved destination.
         val savedDeadline = System.currentTimeMillis() + 5000
-        while (LibraryStore(instrumentation.targetContext).current(book.id).anchor != expected && System.currentTimeMillis() < savedDeadline) Thread.sleep(40)
-        assertEquals(expected, LibraryStore(instrumentation.targetContext).current(book.id).anchor)
+        while (storedBook(book.id).anchor != expected && System.currentTimeMillis() < savedDeadline) Thread.sleep(40)
+        assertEquals(expected, storedBook(book.id).anchor)
         assertEquals("Search hit is outside the visible page", "true", js(scenario, "(()=>{const r=document.querySelector('[data-miuing-search]').getBoundingClientRect();return r.left>=0 && r.left<window.miuingWidth && r.top>=0 && r.top<window.miuingHeight})()"))
         screenshot(scenario, "text-reader-search.png")
         js(scenario, "window.miuingJump(.9)")
         Thread.sleep(300)
-        val continued = LibraryStore(instrumentation.targetContext).current(book.id).anchor
+        val continued = storedBook(book.id).anchor
         scenario.recreate()
         await(scenario, "!!window.miuingConfig && window.miuingConfig.anchor===$continued && !!document.querySelector('[data-miuing-search]')")
         action("返回跳转前位置").click()
@@ -497,7 +518,7 @@ class ReaderChromeTest {
     @Test fun crossChapterSearchLocatesHitAndNaturalChapterMovementDoesNotReuseIt() = reader { scenario, _, book ->
         js(scenario, "window.miuingJump(.3)")
         Thread.sleep(300)
-        val origin = LibraryStore(instrumentation.targetContext).current(book.id).anchor
+        val origin = storedBook(book.id).anchor
         action("阅读菜单").click()
         action("在图书中搜索").click()
         device.wait(Until.findObject(By.clazz("android.widget.EditText")), 5000)!!.text = "定位1 [a+b] & 😀"
@@ -512,7 +533,7 @@ class ReaderChromeTest {
     @Test fun searchDiscoveryUsesEquivalentWhitespaceAndUnicodeCase() = reader { scenario, _, book ->
         js(scenario, "window.miuingJump(.2)")
         Thread.sleep(300)
-        val origin = LibraryStore(instrumentation.targetContext).current(book.id).anchor
+        val origin = storedBook(book.id).anchor
         for (query in listOf("alpha  beta", "kelvin")) {
             println("SEARCH_DISCOVERY query=$query")
             action("阅读菜单").click()
@@ -527,15 +548,15 @@ class ReaderChromeTest {
             js(scenario, "window.testRestored=false;requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>window.testRestored=true))))")
             await(scenario, "window.testRestored===true")
             val deadline = System.currentTimeMillis() + 5000
-            while (LibraryStore(instrumentation.targetContext).current(book.id).anchor != origin && System.currentTimeMillis() < deadline) Thread.sleep(40)
-            assertEquals(origin, LibraryStore(instrumentation.targetContext).current(book.id).anchor)
+            while (storedBook(book.id).anchor != origin && System.currentTimeMillis() < deadline) Thread.sleep(40)
+            assertEquals(origin, storedBook(book.id).anchor)
         }
     }
 
     @Test fun unreadableChapterStillAllowsReturnToTheSource() = reader { scenario, _, book ->
         js(scenario, "window.miuingJump(.3)")
         Thread.sleep(300)
-        val origin = LibraryStore(instrumentation.targetContext).current(book.id).anchor
+        val origin = storedBook(book.id).anchor
         val chapterFile = File(File(book.source).parentFile, "content/b.xhtml")
         assertTrue("Fixture chapter was not extracted", chapterFile.delete())
         action("阅读菜单").click()
@@ -557,7 +578,7 @@ class ReaderChromeTest {
     @Test fun linksSearchAndNotesShareTheReturnPath() = reader { scenario, _, book ->
         js(scenario, "window.miuingJump(.2)")
         Thread.sleep(300)
-        val origin = LibraryStore(instrumentation.targetContext).current(book.id).anchor
+        val origin = storedBook(book.id).anchor
         js(scenario, "(()=>{const link=document.createElement('a');link.href='b.xhtml#chapter1';document.getElementById('miuing-content').appendChild(link);link.click()})()")
         await(scenario, "!!document.getElementById('chapter1') && !!window.miuingConfig")
         action("返回跳转前位置").click()
@@ -571,10 +592,10 @@ class ReaderChromeTest {
         await(scenario, "!!window.miuingConfig && window.miuingConfig.anchor===$origin")
         js(scenario, "(()=>{const p=document.querySelector('#miuing-content p'),range=document.createRange();range.setStart(p.firstChild,0);range.setEnd(p.firstChild,3);getSelection().removeAllRanges();getSelection().addRange(range);document.dispatchEvent(new Event('selectionchange'))})()")
         text("高亮标记").click()
-        val note = LibraryStore(instrumentation.targetContext).current(book.id).notes.single()
+        val note = storedBook(book.id).notes.single()
         js(scenario, "getSelection().removeAllRanges();window.miuingJump(.6)")
         Thread.sleep(300)
-        val noteOrigin = LibraryStore(instrumentation.targetContext).current(book.id).anchor
+        val noteOrigin = storedBook(book.id).anchor
         action("阅读菜单").click()
         action("高亮标记和笔记").click()
         text("前往原文").click()

@@ -9,6 +9,17 @@ import java.util.UUID
 
 @RunWith(AndroidJUnit4::class)
 class ThemeOptionsStoreTest {
+    @Test fun chineseLayoutIsOptionalClampedAndStoredPerTheme()=preferences {p->
+        val store=ThemeOptionsStore(p)
+        assertFalse(store.load(0).chineseLayout)
+        store.save(0,ThemeOptions(customLayout=true,chineseLayout=true,firstLineIndent=2.5f,paragraphSpacing=.75f))
+        val loaded=ThemeOptionsStore(p).load(0)
+        assertTrue(loaded.chineseLayout);assertEquals(2.5f,loaded.firstLineIndent,.001f);assertEquals(.75f,loaded.paragraphSpacing,.001f)
+        assertFalse(store.load(1).chineseLayout)
+        assertFalse(loaded.copy(customLayout=false).effective(0).chineseLayout)
+        store.save(0,loaded.copy(firstLineIndent=Float.NaN,paragraphSpacing=99f))
+        assertEquals(2f,store.load(0).firstLineIndent,.001f);assertEquals(1.5f,store.load(0).paragraphSpacing,.001f)
+    }
     private fun preferences(block:(android.content.SharedPreferences)->Unit) {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         val name="theme-options-test-${UUID.randomUUID()}"

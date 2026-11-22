@@ -22,7 +22,8 @@ fun readingTheme(index:Int,appearance:String,systemDark:Boolean):ReadingTheme {
 data class ThemeOptions(
     val font:String="book",val bold:Boolean=false,
     val lineHeight:Float=1.85f,val margin:Float=24f,val letterSpacing:Float=0f,
-    val wordSpacing:Float=0f,val justify:Boolean=false,val customLayout:Boolean=false
+    val wordSpacing:Float=0f,val justify:Boolean=false,val customLayout:Boolean=false,
+    val chineseLayout:Boolean=false,val firstLineIndent:Float=2f,val paragraphSpacing:Float=.5f
 ):Serializable {
     companion object {fun defaults(index:Int)=ThemeOptions(font=when(index) {0->"book";3,5->"sans";else->"serif"},bold=index==3)}
     fun normalized(index:Int):ThemeOptions {
@@ -30,7 +31,8 @@ data class ThemeOptions(
         fun safe(value:Float,fallback:Float,min:Float,max:Float)=if(value.isFinite()) value.coerceIn(min,max) else fallback
         return copy(font=font.takeIf {ReadingFonts.find(it)!=null} ?: defaults.font,
             lineHeight=safe(lineHeight,defaults.lineHeight,1.2f,2.4f),margin=safe(margin,defaults.margin,12f,48f),
-            letterSpacing=safe(letterSpacing,0f,0f,.15f),wordSpacing=safe(wordSpacing,0f,0f,.5f))
+            letterSpacing=safe(letterSpacing,0f,0f,.15f),wordSpacing=safe(wordSpacing,0f,0f,.5f),
+            firstLineIndent=safe(firstLineIndent,2f,0f,3f),paragraphSpacing=safe(paragraphSpacing,.5f,0f,1.5f))
     }
     fun effective(index:Int)=if(customLayout) this else defaults(index).copy(font=font,bold=bold)
 }
@@ -53,13 +55,15 @@ class ThemeOptionsStore(private val preferences:SharedPreferences) {
         require(index in 0..5);val d=ThemeOptions.defaults(index);val key="theme.$index."
         return runCatching {ThemeOptions(preferences.getString(key+"font",d.font) ?: d.font,preferences.getBoolean(key+"bold",d.bold),
             preferences.getFloat(key+"lineHeight",d.lineHeight),preferences.getFloat(key+"margin",d.margin),preferences.getFloat(key+"letterSpacing",d.letterSpacing),
-            preferences.getFloat(key+"wordSpacing",0f),preferences.getBoolean(key+"justify",false),preferences.getBoolean(key+"customLayout",false)).normalized(index)}.getOrDefault(d)
+            preferences.getFloat(key+"wordSpacing",0f),preferences.getBoolean(key+"justify",false),preferences.getBoolean(key+"customLayout",false),
+            preferences.getBoolean(key+"chineseLayout",false),preferences.getFloat(key+"firstLineIndent",2f),preferences.getFloat(key+"paragraphSpacing",.5f)).normalized(index)}.getOrDefault(d)
     }
     private fun write(editor:SharedPreferences.Editor,index:Int,o:ThemeOptions) {
         val key="theme.$index."
         editor.putString(key+"font",o.font).putBoolean(key+"bold",o.bold).putFloat(key+"lineHeight",o.lineHeight)
             .putFloat(key+"margin",o.margin).putFloat(key+"letterSpacing",o.letterSpacing).putFloat(key+"wordSpacing",o.wordSpacing)
             .putBoolean(key+"justify",o.justify).putBoolean(key+"customLayout",o.customLayout)
+            .putBoolean(key+"chineseLayout",o.chineseLayout).putFloat(key+"firstLineIndent",o.firstLineIndent).putFloat(key+"paragraphSpacing",o.paragraphSpacing)
     }
     fun save(index:Int,options:ThemeOptions) {require(index in 0..5);preferences.edit().also {write(it,index,options.normalized(index))}.apply()}
 }

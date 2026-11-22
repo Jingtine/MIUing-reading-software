@@ -46,16 +46,24 @@ fun TextReaderChrome(
     selectionActions: @Composable () -> Unit,
     onReturn: (() -> Unit)? = null,
     returnEnabled: Boolean = true,
-    returnLabel: String = "返回"
+    returnLabel: String = "返回",
+    pagination:BookPaginationState?=null
 ) {
     val statusColor = remember(theme) { readerStatusColor(theme) }
+    val chapterPages=pagination?.takeIf {it.chapter==chapter}?.range
+    val whole=if(!scrolling && chapterPages!=null) pagination.map.locate(chapter,chapterPages) else null
+    fun span(first:Int,last:Int)=if(first==last) "$first" else "$first–$last"
+    fun pageDescription(scope:String,first:Int,last:Int,total:Int)=if(first==last) "${scope}第 $first 页，共 $total 页" else "${scope}第 $first 至 $last 页，共 $total 页"
     Box(Modifier.fillMaxSize()) {
         Box(
             Modifier.align(Alignment.TopCenter).fillMaxWidth().height(TextReaderChromeTopInset).padding(horizontal = 12.dp),
         ) {
             Text(
-                if (!scrolling && pages != null) "本章还剩 ${pages.total - pages.current} 页" else "第 ${chapter + 1} 章",
-                Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 96.dp),
+                if(!scrolling && chapterPages!=null) "本章还剩 ${chapterPages.total-chapterPages.last} 页" else if (!scrolling && pages != null) "本章还剩 ${pages.total - pages.current} 页" else "第 ${chapter + 1} 章",
+                Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 96.dp).semantics {
+                    if(!scrolling && chapterPages!=null) contentDescription=pageDescription("本章",chapterPages.first,chapterPages.last,chapterPages.total)
+                    else if(!scrolling && pages!=null) contentDescription=pageDescription("本章",pages.current,pages.current,pages.total)
+                },
                 color = statusColor,
                 fontSize = 12.sp,
                 letterSpacing = 0.sp,
@@ -79,8 +87,18 @@ fun TextReaderChrome(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Spacer(Modifier.width(48.dp))
-            val label = if (!scrolling && pages != null) "本章 ${pages.current} / ${pages.total}" else "第 ${chapter + 1} 章 · ${(position * 100).toInt()}%"
-            val description = if (!scrolling && pages != null) "本章第 ${pages.current} 页，共 ${pages.total} 页" else "本章进度 ${(position * 100).toInt()}%"
+            val label=when {
+                whole!=null->"全书 ${span(whole.first,whole.last)} / ${whole.total}"
+                !scrolling && chapterPages!=null->"本章 ${span(chapterPages.first,chapterPages.last)} / ${chapterPages.total}"
+                !scrolling && pages!=null->"本章 ${pages.current} / ${pages.total}"
+                else->"第 ${chapter+1} 章 · ${(position*100).toInt()}%"
+            }
+            val description=when {
+                whole!=null->pageDescription("全书",whole.first,whole.last,whole.total)
+                !scrolling && chapterPages!=null->pageDescription("本章",chapterPages.first,chapterPages.last,chapterPages.total)
+                !scrolling && pages!=null->pageDescription("本章",pages.current,pages.current,pages.total)
+                else->"本章进度 ${(position*100).toInt()}%"
+            }
             Text(
                 label,
                 Modifier.weight(1f).semantics { contentDescription = description },

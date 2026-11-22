@@ -187,8 +187,16 @@ class DragTurnTest {
         await {!visible()};assertEquals(1.0,js("document.getElementById('miuing-scroll').scrollLeft/window.miuingWidth").toDouble(),.02)
     }
     @Test fun rapidFreshDragCountsTwiceWithoutTailClick()=fixture {_,_->
+        js("""(()=>{
+            window.dragTrace=[];
+            for(const name of ['touchstart','touchmove','touchend','touchcancel']) document.addEventListener(name,e=>window.dragTrace.push([name,Date.now(),e.timeStamp,e.changedTouches[0].clientX,getSelection().toString()]));
+            const advance=window.miuingAdvance,finish=window.miuingFinishDrag;
+            window.miuingAdvance=d=>{window.dragTrace.push(['advance',d,Date.now()]);return advance(d)};
+            window.miuingFinishDrag=(id,commit)=>{const result=finish(id,commit);window.dragTrace.push(['finish',id,commit,result,Date.now()]);return result};
+        })()""")
         repeat(2) {Finger(.84f).use {finger->finger.move(.35f);finger.release()}}
-        await {js("document.getElementById('miuing-scroll').scrollLeft/window.miuingWidth>1.9")=="true"}
+        try {await {js("document.getElementById('miuing-scroll').scrollLeft/window.miuingWidth>1.9")=="true"}}
+        catch(error:Throwable) {throw AssertionError("Rapid drag trace: "+js("JSON.stringify(window.dragTrace)"),error)}
         await {!visible()}
         js("document.body.dispatchEvent(new MouseEvent('click',{bubbles:true,detail:1,clientX:window.miuingWidth*.92,clientY:window.miuingHeight*.5}))")
         Thread.sleep(200);assertEquals(2.0,js("document.getElementById('miuing-scroll').scrollLeft/window.miuingWidth").toDouble(),.02)

@@ -21,6 +21,26 @@ import java.util.zip.ZipOutputStream
 
 @RunWith(AndroidJUnit4::class)
 class ThemePanelTest {
+    @Test fun chineseLayoutControlsCommitPerThemeAndRestorePublisherMode()=reader {s,prefs,_->
+        device.openReaderThemes();text("自定义").click();action("自定义布局").click()
+        scrollToAction("中文排版")
+        action("中文排版").click()
+        scrollToAction("首行缩进")
+        val indent=action("首行缩进").visibleBounds;device.click(indent.left+indent.width()*3/4,indent.centerY())
+        scrollToAction("段间距")
+        val spacing=action("段间距").visibleBounds;device.click(spacing.left+spacing.width()/2,spacing.centerY())
+        device.takeScreenshot(File(instrument.targetContext.getExternalFilesDir(null),"chinese-layout-controls.png"))
+        text("完成").click();action("关闭主题与设置").click()
+        await(s,"window.miuingConfig.chineseLayout && window.miuingConfig.customLayout")
+        val saved=ThemeOptionsStore(prefs).load(0)
+        assertTrue(saved.chineseLayout);assertTrue(saved.firstLineIndent>2f);assertTrue(saved.paragraphSpacing>.5f)
+        assertFalse(ThemeOptionsStore(prefs).load(1).chineseLayout)
+        s.recreate();await(s,"!!window.miuingConfig && window.miuingConfig.chineseLayout")
+        device.openReaderThemes();text("自定义").click();action("自定义布局").click()
+        text("完成").click();action("关闭主题与设置").click()
+        await(s,"window.miuingConfig.customLayout===false && window.miuingConfig.chineseLayout===false")
+        assertEquals("true",js(s,"Array.from(document.querySelectorAll('#miuing-content p')).every(p=>!p.style.getPropertyValue('line-break'))"))
+    }
     private val instrument=InstrumentationRegistry.getInstrumentation()
     private val device=UiDevice.getInstance(instrument)
     private fun web(v:View):WebView? {if(v is WebView) return v;if(v is ViewGroup) repeat(v.childCount) {web(v.getChildAt(it))?.let {w->return w}};return null}
@@ -35,7 +55,16 @@ class ThemePanelTest {
         fail("Theme reader condition timed out: $condition")
     }
     private fun text(value:String)=device.wait(Until.findObject(By.text(value)),5000) ?: throw AssertionError("Missing $value")
-    private fun action(value:String)=device.wait(Until.findObject(By.desc(value)),5000) ?: throw AssertionError("Missing action $value")
+    private fun scrollToAction(value:String) {
+        device.waitForIdle()
+        // A tall tablet panel exposes every control and has no scrollable node.
+        if(device.hasObject(By.scrollable(true))) UiScrollable(UiSelector().scrollable(true)).scrollIntoView(UiSelector().description(value))
+    }
+    private fun action(value:String):UiObject2 {
+        val node=device.wait(Until.findObject(By.desc(value)),5000)
+        if(node==null) {device.takeScreenshot(File(instrument.targetContext.getExternalFilesDir(null),"themes-control-missing.png"));throw AssertionError("Missing action $value")}
+        return node
+    }
     private fun reader(block:(ActivityScenario<MainActivity>,android.content.SharedPreferences,android.content.Context)->Unit)=runBlocking {
         device.setOrientationNatural();device.waitForIdle()
         val context=instrument.targetContext;val prefs=context.getSharedPreferences("reading",0);prefs.edit().clear().commit()
