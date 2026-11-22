@@ -134,12 +134,13 @@ class ReaderChromeTest {
         }
         fail("Search result could not be selected: chapter $chapter")
     }
-    private fun displayedPages(): Pair<Int, Int> {
+    private fun chapterPages(first:Int,last:Int,total:Int)=if(first==last) "本章第 $first 页，共 $total 页" else "本章第 $first 至 $last 页，共 $total 页"
+    private fun displayedPages(): Triple<Int, Int, Int> {
         val label = device.wait(Until.findObject(By.descStartsWith("本章第 ")), 5000)?.contentDescription
             ?: throw AssertionError("Missing native page status")
-        val values = Regex("本章第 (\\d+) 页，共 (\\d+) 页").matchEntire(label)?.groupValues
+        val values = Regex("本章第 (\\d+)(?: 至 (\\d+))? 页，共 (\\d+) 页").matchEntire(label)?.groupValues
             ?: throw AssertionError("Invalid page status: $label")
-        return values[1].toInt() to values[2].toInt()
+        return Triple(values[1].toInt(),values[2].toIntOrNull() ?: values[1].toInt(),values[3].toInt())
     }
 
     private fun screenshot(scenario: ActivityScenario<MainActivity>, name: String) {
@@ -348,12 +349,15 @@ class ReaderChromeTest {
         awaitWholeProgress()
         action("阅读菜单").click()
         val slider = action("阅读进度").visibleBounds
-        device.click(slider.left + slider.width() * 55 / 100, slider.centerY())
+        // In a double-column spread, 55% of this two-chapter fixture can be
+        // the first spread of chapter two, whose correct text anchor is zero.
+        device.click(slider.left + slider.width() * 75 / 100, slider.centerY())
         assertTrue(device.wait(Until.gone(By.desc("关闭阅读菜单")), 5000))
-        awaitWholeProgress(.3,.7)
+        awaitWholeProgress(.6,.9)
         Thread.sleep(250)
         val anchor = js(scenario, "window.miuingAnchor()").toInt()
         assertTrue(anchor > 100)
+        assertEquals("Whole-book seek should enter chapter two",1,storedBook(book.id).chapter)
         assertEquals("Slider seek persisted a different passage", anchor, storedBook(book.id).anchor)
         action("阅读菜单").click()
         action("添加书签").click()
@@ -376,20 +380,26 @@ class ReaderChromeTest {
     }
 
     @Test fun nativePageStatusTracksEndpointsAndFontReflow() = reader { scenario, _, _ ->
+        await(scenario,"!!window.miuingPageMetrics()")
+        val columns=js(scenario,"window.miuingPageMetrics().columns").toInt()
+        val initialTotal=js(scenario,"window.miuingPageMetrics().total").toInt()
+        action(chapterPages(1,minOf(columns,initialTotal),initialTotal))
         val initial = displayedPages()
         assertEquals(1, initial.first)
-        assertTrue(initial.second > 1)
+        assertEquals(minOf(columns,initial.third),initial.second)
+        assertTrue(initial.third > 1)
         js(scenario, "window.miuingJump(1)")
-        action("本章第 ${initial.second} 页，共 ${initial.second} 页")
+        action(chapterPages((initial.third-1)/columns*columns+1,initial.third,initial.third))
         device.openReaderThemes()
         repeat(4) { action("增大字号").click() }
         action("关闭主题与设置").click()
-        val larger = displayedPages()
-        assertTrue("Native page count did not respond to actual font reflow", larger.second > initial.second)
+        await(scenario,"window.miuingPageMetrics() && window.miuingPageMetrics().total>${initial.third}")
+        val larger=js(scenario,"window.miuingPageMetrics().total").toInt()
+        assertTrue("Native page count did not respond to actual font reflow",larger>initial.third)
         js(scenario, "window.miuingJump(1)")
-        action("本章第 ${larger.second} 页，共 ${larger.second} 页")
+        action(chapterPages((larger-1)/columns*columns+1,larger,larger))
         js(scenario, "window.miuingJump(0)")
-        action("本章第 1 页，共 ${larger.second} 页")
+        action(chapterPages(1,minOf(columns,larger),larger))
     }
 
     @Test fun systemBackDismissesToolsBeforeLeavingTheBook() = reader { _, _, book ->
@@ -483,6 +493,74 @@ class ReaderChromeTest {
         action("增大字号").click()
         action("关闭主题与设置").click()
         await(scenario,"getComputedStyle(document.getElementById('p0')).fontFamily.indexOf('monospace')>=0")
+    }
+
+    @Test fun searchMatchesMoveIndividuallyAndReturnDirectlyToOriginalPassage() = reader {scenario,_,book->
+        js(scenario,"window.miuingJump(.4)");Thread.sleep(300)
+        val origin=storedBook(book.id).anchor
+        action("阅读菜单").click();action("在图书中搜索").click()
+        device.wait(Until.findObject(By.clazz("android.widget.EditText")),5000)!!.text="needle"
+        clickSearchResult()
+        assertNotNull(device.wait(Until.findObject(By.text("本章 1 / 141")),5000))
+        fun choose(label:String,index:Int) {
+            val button=action(label)
+            assertTrue(device.wait(Until.hasObject(By.desc(label).enabled(true)),5000))
+            button.click()
+            await(scenario,"!!window.miuingConfig && window.miuingConfig.searchIndex===$index && !!document.querySelector('[data-miuing-search]')")
+            val expected=js(scenario,"(()=>{const root=document.getElementById('miuing-content'),mark=root.querySelector('[data-miuing-search]');return new MIUingTextIndex(root).offsetOf(mark.firstChild,0)})()").toInt()
+            val end=System.currentTimeMillis()+5000
+            while(storedBook(book.id).anchor!=expected && System.currentTimeMillis()<end) Thread.sleep(40)
+            assertEquals(expected,storedBook(book.id).anchor)
+        }
+        assertFalse(action("上一处匹配").isEnabled)
+        choose("下一处匹配",1);choose("下一处匹配",2);choose("上一处匹配",1)
+        val selected=storedBook(book.id).anchor
+        scenario.recreate()
+        await(scenario,"!!window.miuingConfig && window.miuingConfig.searchIndex===1 && window.miuingConfig.anchor===$selected")
+        assertNotNull(device.wait(Until.findObject(By.text("本章 2 / 141")),5000))
+        screenshot(scenario,"search-navigation.png")
+        action("返回跳转前位置").click()
+        await(scenario,"!!window.miuingConfig && window.miuingConfig.anchor===$origin && !document.querySelector('[data-miuing-search]')")
+        assertTrue(device.wait(Until.gone(By.desc("返回跳转前位置")),5000))
+        assertFalse(device.hasObject(By.desc("下一处匹配")))
+    }
+
+    @Test fun closingSearchNavigationKeepsCurrentPassageAndSingleMatchDisablesBothDirections()=reader {scenario,_,book->
+        action("阅读菜单").click();action("在图书中搜索").click()
+        device.wait(Until.findObject(By.clazz("android.widget.EditText")),5000)!!.text="定位0 [a+b] & 😀"
+        clickSearchResult()
+        assertNotNull(device.wait(Until.findObject(By.text("本章 1 / 1")),5000))
+        assertFalse(action("上一处匹配").isEnabled);assertFalse(action("下一处匹配").isEnabled)
+        await(scenario,"!!window.miuingConfig && window.miuingProgress()>.5")
+        val origin=storedBook(book.id).anchor
+        action("关闭搜索导航").click()
+        await(scenario,"!!window.miuingConfig && !document.querySelector('[data-miuing-search]')")
+        assertEquals(origin,storedBook(book.id).anchor)
+        assertFalse(device.hasObject(By.desc("下一处匹配")))
+    }
+
+    @Test fun closingSearchAfterScrollingCapturesTheLivePassageBeforeDebounce()=reader(beforeOpen={
+        instrumentation.targetContext.getSharedPreferences("reading",0).edit().putBoolean("scroll",true).commit()
+    }) {scenario,_,book->
+        action("阅读菜单").click();action("在图书中搜索").click()
+        device.wait(Until.findObject(By.clazz("android.widget.EditText")),5000)!!.text="needle"
+        clickSearchResult();assertNotNull(device.wait(Until.findObject(By.text("本章 1 / 141")),5000))
+        val before=storedBook(book.id).anchor
+        // Hold only the renderer's normal progress debounce, so closing can
+        // deterministically happen while visible text is ahead of saved state.
+        js(scenario,"""(()=>{
+            const timeout=window.setTimeout;window.setTimeout=(fn,delay,...args)=>timeout(fn,delay===180?5000:delay,...args);
+            const shell=document.getElementById('miuing-scroll');shell.scrollTop=(shell.scrollHeight-shell.clientHeight)*.7;
+            requestAnimationFrame(()=>{window.liveSearchAnchor=window.miuingAnchor();window.liveSearchReady=true});
+        })()""")
+        await(scenario,"window.liveSearchReady===true && window.miuingProgress()>.6")
+        val live=js(scenario,"window.liveSearchAnchor").toInt()
+        assertNotEquals(before,live);assertEquals(before,storedBook(book.id).anchor)
+        action("关闭搜索导航").click()
+        await(scenario,"!!window.miuingConfig && !document.querySelector('[data-miuing-search]')")
+        val end=System.currentTimeMillis()+5000
+        while(storedBook(book.id).anchor!=live && System.currentTimeMillis()<end) Thread.sleep(40)
+        assertEquals("Close restored stale progress instead of the visible passage",live,storedBook(book.id).anchor)
     }
 
     @Test fun searchTypingKeepsSourceAndSelectedHitReturnsAfterRecreation() = reader { scenario, _, book ->

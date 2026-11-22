@@ -39,6 +39,7 @@
     return Math.max(0, config.scrolling ? shell.scrollHeight - shell.clientHeight : shell.scrollWidth - shell.clientWidth);
   }
   window.miuingProgress = () => extent() ? (config.scrolling ? shell.scrollTop : shell.scrollLeft) / extent() : 0;
+  window.miuingLocation=()=>({position:window.miuingProgress(),anchor:retainedAnchor>=0?retainedAnchor:window.miuingAnchor()});
   function beginNavigation() {gestures.cancel();retainedAnchor=-1;layoutRevision++;restoring=false;hasPosition=true;pendingInitial=null;clearTimeout(timer);}
   function scrollReader(left,top) {
     shell.scrollTo(left,top);
@@ -153,7 +154,7 @@
       #miuing-content{box-sizing:content-box;width:${available}px;margin:${m}px;${next.scrolling?`max-width:760px;margin:${m}px auto;padding:0 ${m}px;`:`height:${h-2*m}px;column-width:${column}px;column-gap:${2*m}px;column-fill:auto;`}}
       p{font-size:inherit!important;${next.customLayout===false?'':'line-height:inherit!important;letter-spacing:inherit!important;word-spacing:inherit!important;'}color:inherit!important;${next.justify?'text-align:justify!important;':''}}img,svg{max-width:100%!important;max-height:${h-2*m}px!important;object-fit:contain}mark[data-miuing]{background:#e8ce6c;color:inherit}mark[data-miuing-search]{background:#ffb95b;color:#222}
     `;
-    textIndex.highlights(next.notes || [], next.search || '');
+    const searchHit=textIndex.highlights(next.notes || [], next.search || '',next.searchIndex || 0);
     chineseTypography.restore();textStyleOverrides(family,next);chineseTypography.apply(flow,next);
     for(const img of flow.querySelectorAll('img')) if(img.loading==='lazy') img.loading='eager';
     let imagesPendingOnLayout=false;
@@ -183,7 +184,7 @@
       else if (!previous && destination.fragment && document.getElementById(destination.fragment)) {retainedAnchor=-1;locateRect(document.getElementById(destination.fragment).getBoundingClientRect());}
       else if (destination.anchor >= 0) jumpAnchor(destination.anchor);
       else if (destination.search) {
-        const hit = textIndex.find(destination.search);
+        const hit = searchHit;
         if (hit) { retainedAnchor = hit.start; jumpAnchor(hit.start); }
         else jumpFraction(destination.position);
       }
@@ -195,6 +196,7 @@
       requestAnimationFrame(()=>{
         if(revision!==layoutRevision) return;
         restoring=false;publish();
+        if(typeof MIUing.searchMatch==='function') MIUing.searchMatch(searchHit?searchHit.index:0,searchHit?searchHit.total:0);
         if(typeof MIUing.ready==='function') MIUing.ready();
       });
     }));

@@ -47,6 +47,9 @@ import kotlin.math.roundToInt
     var panel by remember { mutableStateOf<ReaderPanel?>(null) }
     var search by remember { mutableStateOf("") }
     var searchTarget by rememberSaveable(initial.id) { mutableStateOf("") }
+    var searchOrdinal by rememberSaveable(initial.id) {mutableIntStateOf(0)}
+    var searchMatch by remember(chapter,jump,searchTarget) {mutableStateOf<SearchMatchInfo?>(null)}
+    val locationCapture=remember(initial.id) {ReadingLocationCapture()}
     var results by remember { mutableStateOf<List<Pair<Int,String>>>(emptyList()) }
     var selection by remember { mutableStateOf("") }
     var selectedRange by remember { mutableStateOf(SelectedText()) }
@@ -134,15 +137,15 @@ import kotlin.math.roundToInt
     val savePosition:(Int,Float)->Unit={c,p ->
         fragment="";saveLocated(c,p,-1);selection=""
     }
-    fun navigate(c:Int,p:Float=0f,a:Int=-1,target:String="",find:String="") {
+    fun navigate(c:Int,p:Float=0f,a:Int=-1,target:String="",find:String="",match:Int=0,rememberSource:Boolean=true) {
         if(book.format!="PDF") {
             if(locationAvailable==null) return
-            if(locationAvailable==true) {
+            if(locationAvailable==true && rememberSource) {
                 val source=ReadingLocation(chapter,position,anchor)
                 if(history.lastOrNull()!=source) history=(history+source).takeLast(20)
             }
         }
-        saveLocated(c,p,a);fragment=target;searchTarget=find;selection="";selectedRange=SelectedText()
+        saveLocated(c,p,a);fragment=target;searchTarget=find;searchOrdinal=match.coerceAtLeast(0);selection="";selectedRange=SelectedText()
         locationAvailable=null;jump++
     }
     fun returnToSource() {
@@ -151,6 +154,7 @@ import kotlin.math.roundToInt
         history=history.dropLast(1)
         saveLocated(source.chapter,source.position,source.anchor)
         searchTarget=""
+        searchOrdinal=0
         selection="";selectedRange=SelectedText();locationAvailable=null;jump++
     }
     fun toggleBookmark() {
@@ -168,6 +172,9 @@ import kotlin.math.roundToInt
     }
     LaunchedEffect(pagination?.key) {if(menuOpen && menuLayoutKey!=null && pagination?.key!=menuLayoutKey) menuOpen=false}
     val selectionActions: @Composable () -> Unit = {
+                if(selection.isBlank() && searchTarget.isNotBlank()) SearchNavigation(searchMatch,locationAvailable==true,theme,
+                    onMove={index->navigate(chapter,find=searchTarget,match=index,rememberSource=false)},
+                    onClose={locationCapture.capture {p,a->navigate(chapter,p,a,rememberSource=false)}})
                 if(selection.isNotBlank()) Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.Center) {
                     TextButton(onClick={val b=store.current(book.id);store.update(b.copy(notes=b.notes+Note(chapter,selection,start=selectedRange.start,end=selectedRange.end)));selection=""}) { Text("高亮标记") }
                     TextButton(onClick={editingNote=null;noteText="";panel=ReaderPanel.AddNote}) { Text("添加笔记") }
@@ -206,14 +213,15 @@ import kotlin.math.roundToInt
                         val readerJump=jump
                         TextReader(p,java.io.File(java.io.File(book.source).parentFile,"content"),safeChapter,position,jump,theme,fontSize,scrolling,options.font!="sans",searchTarget,book.notes,
                             onPosition={savePosition(safeChapter,it)},onTap={controls=!controls},onSelection={selection=it},
-                            onChapter={next -> if(next in p.chapters.indices) { searchTarget="";savePosition(next,if(next<safeChapter) 1f else 0f);jump++ } },
+                            onChapter={next -> if(next in p.chapters.indices) { searchTarget="";searchOrdinal=0;savePosition(next,if(next<safeChapter) 1f else 0f);jump++ } },
                             anchor=anchor,fragment=fragment,lineHeight=effectiveOptions.lineHeight,margin=effectiveOptions.margin,letterSpacing=effectiveOptions.letterSpacing,pageTurn=pageTurn,
                             fontFamily=options.font,boldText=options.bold,wordSpacing=effectiveOptions.wordSpacing,justify=effectiveOptions.justify,customLayout=options.customLayout,
                             chineseLayout=effectiveOptions.chineseLayout,firstLineIndent=effectiveOptions.firstLineIndent,paragraphSpacing=effectiveOptions.paragraphSpacing,
                             onLocation={progress,at->if(jump==readerJump) {saveLocated(safeChapter,progress,at);locationAvailable=true}},
                             onLoadError={if(jump==readerJump) locationAvailable=false},
                             onSelectionRange={ if(panel?.editsNote != true) {selectedRange=it;selection=it.text} },
-                            onLink={next,target->navigate(next,target=target)},onPages={pages=it},onPagination={pagination=it})
+                            onLink={next,target->navigate(next,target=target)},onPages={pages=it},onPagination={pagination=it},
+                            searchIndex=searchOrdinal,onSearchMatch={searchMatch=it},locationCapture=locationCapture)
                     }
                 } ?: CircularProgressIndicator(color=Accent)
             }

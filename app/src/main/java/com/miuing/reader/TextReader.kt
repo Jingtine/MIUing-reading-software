@@ -37,7 +37,8 @@ internal fun loadReaderScript(context:android.content.Context):String =
     chineseLayout:Boolean=false,firstLineIndent:Float=2f,paragraphSpacing:Float=.5f,
     onLocation:(Float,Int)->Unit={p,_->onPosition(p)},
     onSelectionRange:(SelectedText)->Unit={onSelection(it.text)},onLink:(Int,String)->Unit={i,_->onChapter(i)},
-    onPages:(ReaderPageInfo)->Unit={},onLoadError:()->Unit={},onPagination:(BookPaginationState?)->Unit={}
+    onPages:(ReaderPageInfo)->Unit={},onLoadError:()->Unit={},onPagination:(BookPaginationState?)->Unit={},
+    searchIndex:Int=0,onSearchMatch:(SearchMatchInfo)->Unit={},locationCapture:ReadingLocationCapture?=null
 ) {
     val context=androidx.compose.ui.platform.LocalContext.current
     val systemTypography=systemTypographyIdentity(androidx.compose.ui.platform.LocalConfiguration.current)
@@ -61,6 +62,7 @@ internal fun loadReaderScript(context:android.content.Context):String =
     val latestChapter by rememberUpdatedState(onChapter)
     val latestLink by rememberUpdatedState(onLink)
     val latestPages by rememberUpdatedState(onPages)
+    val latestSearchMatch by rememberUpdatedState(onSearchMatch)
     val latestLoadError by rememberUpdatedState(onLoadError)
     val path=publication.chapters[chapter].path.toFile()
     var html by remember(path) { mutableStateOf<String?>(null) }
@@ -87,6 +89,7 @@ internal fun loadReaderScript(context:android.content.Context):String =
     val configuration=JSONObject().apply {
         put("position",initial.first);put("anchor",initial.second);put("fragment",initial.third)
         put("search",initialSearch)
+        put("searchIndex",searchIndex)
         put("paper","#%06x".format(theme.paper.toArgb() and 0xffffff))
         put("ink","#%06x".format(theme.ink.toArgb() and 0xffffff))
         put("fontSize",fontSize);put("scrolling",scrolling);put("serif",serif);put("bold",boldText)
@@ -112,6 +115,7 @@ internal fun loadReaderScript(context:android.content.Context):String =
     var loaded by remember(web) { mutableStateOf(false) }
     bridge.turnPage={direction->if(loaded) host.turn(web,pageTurn,direction,theme.paper.toArgb()) {ready->web.evaluateJavascript("window.miuingAdvance($direction)") {ready()}}}
     bridge.onReady={host.ready(web)}
+    bridge.onSearchMatch={latestSearchMatch(it)}
     bridge.onPagination={key,range->
         val layout=binding.layout
         if(binding.owner===web && layout?.key==key && !scrolling) paginator.source(layout.plan,chapter,range)
@@ -125,11 +129,12 @@ internal fun loadReaderScript(context:android.content.Context):String =
     bridge.onDragMove={id,p->host.move(web,id,p)}
     bridge.onDragEnd={id,commit->host.end(web,id,commit)}
     bridge.onDragAbort={id->host.abort(web,id)}
-    DisposableEffect(web) {onDispose {host.unbind(web);destroyReadingWeb(web,bridge)}}
+    DisposableEffect(web,locationCapture) {onDispose {locationCapture?.unbind(web);host.unbind(web);destroyReadingWeb(web,bridge)}}
     LaunchedEffect(configuration,loaded,systemTypography) {if(loaded) configure(web)}
     key(host) {AndroidView(factory={host},modifier=Modifier.fillMaxSize().onSizeChanged {
         if(host.viewportChanged(it.width,it.height) && loaded) web.post {if(bridge.active) configure(web)}
     },update={ _ ->
+        locationCapture?.bind(web)
         host.bind(web,path.path)
         val view=web
         view.setBackgroundColor(theme.paper.toArgb())

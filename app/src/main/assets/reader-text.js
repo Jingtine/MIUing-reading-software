@@ -86,7 +86,7 @@
       return range;
     }
 
-    find(query) {
+    find(query, ordinal = 0) {
       if (!query || !query.trim()) return null;
       // Escape each literal part, allowing equivalent HTML whitespace without
       // changing the UTF-16 offsets returned by the actual DOM text match.
@@ -111,7 +111,14 @@
         parts.push(node.data); length += node.length; previous = group; broken = false;
       }
       const text = parts.join(''), folded = text.toLowerCase();
-      const match = new RegExp(pattern).exec(folded);
+      const wanted=Number.isFinite(ordinal)?Math.max(0,Math.floor(ordinal)):0;
+      const expression=new RegExp(pattern,'g');
+      let found,match=null,last=null,total=0;
+      while((found=expression.exec(folded))) {
+        if(total===wanted) match=found;
+        last=found;total++;
+      }
+      match=match || last;
       if (!match) return null;
       // Most lowercasing preserves UTF-16 length. Handle expansions (e.g. İ)
       // without letting search-string offsets leak into stored DOM anchors.
@@ -133,13 +140,13 @@
         }
         const last = chunks[chunks.length - 1]; return last.offset + last.text.length;
       };
-      return { start: domOffset(start, false), end: domOffset(end, true) };
+      return { start: domOffset(start, false), end: domOffset(end, true), index:Math.min(wanted,total-1), total };
     }
 
-    highlights(notes, query = '') {
+    highlights(notes, query = '', ordinal = 0) {
       this.flushChanges();
-      const key = JSON.stringify([notes, query]);
-      if (key === this.notesKey) return;
+      const key = JSON.stringify([notes, query, ordinal]);
+      if (key === this.notesKey) return this.searchHit || null;
       // These edits preserve the text. Invalidate the node index explicitly,
       // but don't treat our own wrapping as a new book-content revision.
       this.observer.disconnect();
@@ -147,7 +154,7 @@
         this.root.querySelectorAll('mark[data-miuing],mark[data-miuing-search]').forEach(mark => mark.replaceWith(...mark.childNodes));
         this.root.normalize();
         this.invalidate();
-        if (!notes.length && !query) { this.notesKey = key; return; }
+        if (!notes.length && !query) { this.notesKey = key;this.searchHit=null;return null; }
         const entries = this.entries();
         const last = entries[entries.length - 1];
         const length = last ? last.offset + last.node.length : 0;
@@ -163,7 +170,8 @@
           end = Math.min(end, length);
           if (start >= 0 && end > start) ranges.push({ start, end });
         }
-        const hit = this.find(query);
+        const hit = this.find(query,ordinal);
+        this.searchHit=hit;
         // Composite note union and the temporary search hit into disjoint
         // segments; overlaps retain both meanings without nested marks.
         const events = [];
@@ -207,6 +215,7 @@
           entry.node.replaceWith(fragment);
         }
         this.notesKey = key;
+        return hit;
       } finally {
         this.index = null;
         this.offsets = null;
