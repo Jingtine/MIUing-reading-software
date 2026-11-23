@@ -10,6 +10,7 @@ import com.miuing.core.Publication
 import com.miuing.core.PublicationParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -45,15 +46,16 @@ class LibraryStore(private val context: Context, private val root: File = File(c
     }
     suspend fun import(uri: Uri): Book {
         check(loadError == null) { "书库记录损坏，请保留文件后修复" }
+        var created:File?=null
+        try {
         val imported = withContext(Dispatchers.IO) {
             val name = if (uri.scheme == "file") File(uri.path!!).name else
                 context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
                     if (it.moveToFirst()) it.getString(0) else null
                 } ?: "book"
             val format = name.substringAfterLast('.', "").lowercase()
-            require(format in listOf("epub", "pdf", "txt")) { "暂不支持此格式：$name" }
+            require(format in listOf("epub", "pdf", "txt") || format in BookFormatImporter.formats) { "暂不支持此格式：$name" }
             val staging = File(root, "import-${UUID.randomUUID()}")
-            var destination: File? = null
             try {
                 val digest = MessageDigest.getInstance("SHA-256")
                 context.contentResolver.openInputStream(uri)?.use { input ->
@@ -61,15 +63,23 @@ class LibraryStore(private val context: Context, private val root: File = File(c
                         val buffer = ByteArray(65536); var total = 0L
                         while (true) {
                             val n = input.read(buffer); if (n < 0) break
-                            total += n; require(total <= 1024L * 1024 * 1024) { "文件超过 1 GB" }
+                            total += n
+                            require(total <= if(format in BookFormatImporter.formats) 64L*1024*1024 else 1024L*1024*1024) {
+                                if(format in BookFormatImporter.formats) "此格式目前支持64MiB以内的文件" else "文件超过 1 GB"
+                            }
                             digest.update(buffer, 0, n); output.write(buffer, 0, n)
                         }
                     }
                 } ?: error("无法读取文件")
                 val id = digest.digest().joinToString("") { "%02x".format(it) }
                 val existing = books.firstOrNull { it.id == id }
-                if (existing != null) existing else {
-                    val dir = File(root, id); destination = dir; dir.mkdirs()
+                if (existing != null) {
+                    val originalFormat=existing.format.lowercase()
+                    if(originalFormat in BookFormatImporter.formats && !normalized(existing).isFile)
+                        BookFormatImporter.convert(context,staging,normalized(existing),originalFormat)
+                    existing
+                } else {
+                    val dir = File(root, id); created = dir; dir.mkdirs()
                     val source = File(dir, "source.$format")
                     check(staging.renameTo(source)) { "无法保存导入文件" }
                     if (format == "pdf") {
@@ -78,25 +88,37 @@ class LibraryStore(private val context: Context, private val root: File = File(c
                         }
                         Book(id, name.substringBeforeLast('.'), "未知作者", "PDF", source.path)
                     } else {
-                        val p = PublicationParser.open(source.toPath(), File(dir, "content").toPath())
-                        Book(id, if(format == "txt" || p.title=="source") name.substringBeforeLast('.') else p.title, p.author, p.format, source.path, p.cover?.toString() ?: "")
+                        val converted=format in BookFormatImporter.formats
+                        val reading=if(converted) File(dir,"normalized.epub").also {BookFormatImporter.convert(context,source,it,format)} else source
+                        val p = PublicationParser.open(reading.toPath(), File(dir, "content").toPath())
+                        Book(id, if(format == "txt" || p.title=="source" || p.title=="未命名图书") name.substringBeforeLast('.') else p.title, p.author, if(converted) format.uppercase() else p.format, source.path, p.cover?.toString() ?: "")
                     }
                 }
-            } catch (e: Exception) { destination?.deleteRecursively(); throw e }
-            finally { staging.delete() }
+            } finally { staging.delete() }
         }
-        withContext(Dispatchers.Main) { if (books.none { it.id == imported.id }) update(imported) }
+        withContext(Dispatchers.Main) { if (books.none { it.id == imported.id }) update(imported);created=null }
         return imported
+        } finally {created?.let {dir->withContext(NonCancellable+Dispatchers.IO) {dir.deleteRecursively()}}}
     }
     fun open(book: Book): Publication = if (book.format == "PDF")
         Publication(book.title, book.author, "PDF", emptyList(), null)
-    else PublicationParser.open(File(book.source).toPath(), File(File(book.source).parentFile, "content").toPath())
+    else {
+        val source=if(book.format.lowercase() in BookFormatImporter.formats) normalized(book).also {
+            check(it.isFile) {"阅读副本缺失，请重新导入同一本书以修复"}
+        } else File(book.source)
+        PublicationParser.open(source.toPath(), File(File(book.source).parentFile, "content").toPath())
+    }
+    private fun normalized(book:Book)=File(File(book.source).parentFile,"normalized.epub")
     fun current(id: String) = books.first { it.id == id }
     fun update(book: Book) {
         check(loadError == null) { loadError!! }
         val at = books.indexOfFirst { it.id == book.id }
+        val previous=books.getOrNull(at)
         if (at < 0) books.add(book) else books[at] = book
-        persist()
+        try {persist()} catch(e:Exception) {
+            if(at<0) books.removeAll {it.id==book.id} else books[at]=previous!!
+            throw e
+        }
     }
     fun delete(id: String) {
         val book = books.firstOrNull { it.id == id } ?: return

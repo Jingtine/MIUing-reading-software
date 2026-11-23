@@ -8,3 +8,5 @@
 /Books.app/
 /.superpowers/
 /.local-fonts/
+**/node_modules/
+/tools/import-converter/.bounded-mobi.js

@@ -104,7 +104,7 @@ import java.io.File
                         Column(Modifier.weight(1f).fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center) {
                             Icon(Icons.AutoMirrored.Filled.MenuBook,null,Modifier.size(56.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("书库为空",Modifier.padding(top=20.dp),fontSize=23.sp,fontWeight=FontWeight.SemiBold)
-                            Text("导入图书，开始你的阅读。",Modifier.padding(top=8.dp,bottom=24.dp),color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("支持 EPUB、PDF、TXT、MOBI、AZW、AZW3、FB2。",Modifier.padding(top=8.dp,bottom=24.dp),color=MaterialTheme.colorScheme.onSurfaceVariant)
                             Button(onClick=onImport,enabled=!importing) { Text("导入图书") }
                         }
                     } else if(tab=="主页") {

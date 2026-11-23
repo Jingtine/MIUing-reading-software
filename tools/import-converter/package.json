@@ -1,0 +1,8 @@
+{
+  "name": "miuing-import-converter-build",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "scripts": { "build": "node build.cjs" },
+  "devDependencies": { "esbuild": "0.25.12" }
+}

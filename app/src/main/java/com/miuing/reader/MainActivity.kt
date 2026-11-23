@@ -13,6 +13,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 val Accent = Color(0xFFD96828)
 
@@ -32,7 +33,7 @@ class MainActivity : ComponentActivity() {
                     scope.launch {
                         importing = true
                         var added=0; val errors=mutableListOf<String>()
-                        for(uri in uris) try { store.import(uri); added++ } catch(e:Exception) { errors.add(e.localizedMessage ?: "导入失败") }
+                        for(uri in uris) try { store.import(uri); added++ } catch(e:CancellationException) {throw e} catch(e:Exception) { errors.add(e.localizedMessage ?: "导入失败") }
                         importing=false
                         if(uris.isNotEmpty()) snack.showSnackbar(if(errors.isEmpty()) "已导入 $added 本图书" else "成功 $added 本；${errors.joinToString("；")}",duration=SnackbarDuration.Long)
                     }
@@ -41,7 +42,8 @@ class MainActivity : ComponentActivity() {
                 BackHandler(active != null) { reading = null }
                 if(active != null) ReaderScreen(active,store) { reading = null }
                 else libraryState.SaveableStateProvider("library") {LibraryScreen(store, importing, snack, onImport={picker.launch(arrayOf("*/*"))},onOpen={
-                    store.update(it.copy(opened=System.currentTimeMillis())); reading=it.id
+                    if(importing) scope.launch {snack.showSnackbar("正在导入图书，请稍候")}
+                    else {store.update(it.copy(opened=System.currentTimeMillis())); reading=it.id}
                 })}
             }
         }

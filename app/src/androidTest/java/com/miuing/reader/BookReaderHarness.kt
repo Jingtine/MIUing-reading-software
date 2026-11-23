@@ -18,12 +18,12 @@ import java.util.UUID
 
 /** Small real publication with an exact number of physical columns per chapter. */
 internal class BookReaderHarness(counts:List<Int> = listOf(3,2,4),holdCounting:Boolean=false,
-    transform:(Int,String)->String={_,html->html},extras:Map<String,String> = emptyMap()):AutoCloseable {
+    transform:(Int,String)->String={_,html->html},extras:Map<String,String> = emptyMap(),sourceFactory:((File,String)->File)?=null):AutoCloseable {
     val instrument=InstrumentationRegistry.getInstrumentation()
     val device=UiDevice.getInstance(instrument)
     private val context=instrument.targetContext
-    private val file=File(context.cacheDir,"whole-book.epub")
     private val title="全书分页测试-${UUID.randomUUID().toString().take(8)}"
+    private val file=sourceFactory?.invoke(context.cacheDir,title) ?: File(context.cacheDir,"whole-book.epub")
     val book:Book
     private val chapterCount=counts.size
     var scenario:ActivityScenario<MainActivity>
@@ -39,7 +39,7 @@ internal class BookReaderHarness(counts:List<Int> = listOf(3,2,4),holdCounting:B
     init {
         device.setOrientationNatural()
         context.getSharedPreferences("reading",0).edit().clear().commit()
-        ZipOutputStream(file.outputStream()).use {zip->
+        if(sourceFactory==null) ZipOutputStream(file.outputStream()).use {zip->
             val entries=linkedMapOf("META-INF/container.xml" to "<container><rootfiles><rootfile full-path='book.opf'/></rootfiles></container>",
                 "book.opf" to "<package xmlns:dc='http://purl.org/dc/elements/1.1/'><metadata><dc:title>$title</dc:title></metadata><manifest>"+counts.indices.joinToString("") {"<item id='c$it' href='c$it.xhtml' media-type='application/xhtml+xml'/>"}+"</manifest><spine>"+counts.indices.joinToString("") {"<itemref idref='c$it'/>"}+"</spine></package>")
             counts.forEachIndexed {chapter,total->entries["c$chapter.xhtml"]="<html><body>"+(1..total).joinToString("") {"<div style='height:calc(100vh - 50px);break-after:column;break-inside:avoid' id='c${chapter}p$it'>Chapter $chapter page $it. 中文正文。</div>"}+"</body></html>"}

@@ -1,2 +1,6 @@
 # Keep the upstream OFL text verbatim, including its original trailing space.
 app/src/main/assets/fonts/LXGWWenKai-OFL.txt whitespace=-blank-at-eol
+third_party/foliate-js/*.js text eol=lf
+tools/import-converter/*.js text eol=lf
+tools/import-converter/*.cjs text eol=lf
+app/src/main/assets/book-import.js text eol=lf

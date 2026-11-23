@@ -21,6 +21,15 @@ class SlideTurnTest {
     private val device=UiDevice.getInstance(instrument)
 
     @Test fun tapSlideWaitsForDestinationVisualState() {
+        val old=device.executeShellCommand("settings get global animator_duration_scale").trim()
+        device.executeShellCommand("settings put global animator_duration_scale 1")
+        val enabledBy=SystemClock.uptimeMillis()+5000
+        var enabled=false
+        while(!enabled && SystemClock.uptimeMillis()<enabledBy) {
+            instrument.runOnMainSync {enabled=android.animation.ValueAnimator.areAnimatorsEnabled()}
+            if(!enabled) Thread.sleep(25)
+        }
+        assertTrue("Visual state test requires enabled system motion",enabled)
         var overlay:PageTurnOverlay?=null;var view:WebView?=null;var acknowledged=false;var requested=false
         var callback:WebView.VisualStateCallback?=null
         try {
@@ -34,7 +43,7 @@ class SlideTurnTest {
             }
             Thread.sleep(150)
             instrument.runOnMainSync {
-                assertTrue("Slide capture never requested a WebView visual state",requested)
+                assertTrue("Slide capture never requested a WebView visual state; motion=${android.animation.ValueAnimator.areAnimatorsEnabled()}",requested)
                 val f=PageTurnOverlay::class.java.getDeclaredField("destination");f.isAccessible=true
                 assertNull("Unpainted destination was captured",f.get(overlay))
                 acknowledged=true;callback!!.onComplete(0)
@@ -42,7 +51,10 @@ class SlideTurnTest {
                 assertNotNull("Paint acknowledgement must capture the target",target)
                 assertEquals(Color.GREEN,target!!.getPixel(10,10))
             }
-        } finally {instrument.runOnMainSync {overlay?.clear();view?.destroy()}}
+        } finally {
+            instrument.runOnMainSync {overlay?.clear();view?.destroy()}
+            device.executeShellCommand(if(old=="null") "settings delete global animator_duration_scale" else "settings put global animator_duration_scale $old")
+        }
     }
 
     @Test fun slideLayersHaveParallaxWithoutMirroredTextAndReleaseFrames() {
