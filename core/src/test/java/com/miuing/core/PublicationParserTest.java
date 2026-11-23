@@ -114,6 +114,7 @@ public final class PublicationParserTest {
                 Path d=Files.createDirectory(root.resolve("oversized")); var e=epub(); e.put("huge.txt","x".repeat(17*1024*1024));
                 rejects(() -> PublicationParser.open(fixture(d,e),d.resolve("out")));
             });
+            EpubFontObfuscationTest.run(root);
         } finally {
             try (var files=Files.walk(root)) { for(Path p:files.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(p); }
         }

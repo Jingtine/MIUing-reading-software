@@ -57,7 +57,7 @@ public final class PublicationParser {
         Path opf=contained(root,((Element)roots.item(0)).getAttribute("full-path"));
         Document doc=xml(opf);
         title=value(doc,"title",title); String author=value(doc,"creator","未知作者");
-        Map<String,Path> items=new HashMap<>(); Path cover=null,nav=null,ncx=null;
+        Map<String,Path> items=new HashMap<>(); Map<Path,String> resourceTypes=new HashMap<>(); Path cover=null,nav=null,ncx=null;
         String coverId="";
         NodeList metas=doc.getElementsByTagNameNS("*","meta");
         for(int i=0;i<metas.getLength();i++) {
@@ -70,10 +70,12 @@ public final class PublicationParser {
             String href=item.getAttribute("href");
             Path path=relativeResource(root,opf.getParent(),href);
             items.put(item.getAttribute("id"),path);
+            resourceTypes.put(path,item.getAttribute("media-type").toLowerCase(Locale.ROOT));
             if(Arrays.asList(item.getAttribute("properties").split("\\s+")).contains("nav")) nav=path;
             if(item.getAttribute("media-type").equals("application/x-dtbncx+xml")) ncx=path;
             if(item.getAttribute("properties").contains("cover-image") || item.getAttribute("id").equals(coverId)) cover=path;
         }
+        EpubFontObfuscation.decode(root,doc,resourceTypes);
         List<Publication.Chapter> chapters=new ArrayList<>();
         NodeList spine=doc.getElementsByTagNameNS("*","itemref");
         for(int i=0;i<spine.getLength();i++) {
