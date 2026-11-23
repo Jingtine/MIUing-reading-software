@@ -2,12 +2,13 @@
 
 Android 手机与平板离线阅读器，按 Apple Books 的书库组织与阅读体验开发。使用用户提供的猫咪 M 图标。
 
-当前为 **0.7.0 开发版**，主适配 Android 16（编译/目标 API 36），兼容下限 Android 8（API 26）。以可重排文字阅读为开发重点，以流畅、美观、轻量和接近 Apple Books 的阅读体验为目标。功能与视觉对齐进度见 [对照清单](docs/reference/parity.md)。
+当前为 **0.7.1 开发版**，主适配 Android 16（编译/目标 API 36），兼容下限 Android 8（API 26）。以可重排文字阅读为开发重点，以流畅、美观、轻量和接近 Apple Books 的阅读体验为目标。功能与视觉对齐进度见 [对照清单](docs/reference/parity.md)。
 
 ## 当前可用
 
 - 系统文件选择器导入 EPUB、PDF、TXT、MOBI、AZW、AZW3、FB2；应用内保留原始副本、摘要去重、逐项导入结果。
 - MOBI/AZW/AZW3/FB2 使用固定版本 Foliate 开源解析模块，离线生成私有 EPUB 阅读副本，共用目录、搜索、批注、脚注、主题和阅读进度。支持未加密 MOBI/KF8；KFX、DRM 和 Print Replica 暂不支持。新增转换格式原文件上限64MiB，细节见 [0.7.0 格式记录](docs/multiformat-0.7.0.md)。
+- 书库备份：导出书籍、阅读副本、封面、进度、书签、批注及藏书；恢复时仅补入缺失图书，保留已有阅读记录。[备份说明](docs/library-backup-0.7.1.md)。
 - 主页继续阅读、书库网格/列表、标题/作者搜索与排序。封面保留完整比例并底边对齐，书卡显示作者和真实阅读状态；退出阅读保留书库标签、筛选、排序、显示方式与滚动状态。
 - 欲读清单、已读完、自定义藏书及书籍菜单。
 - EPUB/TXT 翻页与滚动、EPUB3/NCX 层级目录和段落跳转、正文搜索、书签、正文锚点定位。
@@ -117,3 +118,5 @@ iBook 风格平移动效参考 [Peyilo/libreadview](https://github.com/Peyilo/li
 新增格式解析复用 [Foliate-js](https://github.com/johnfactotum/foliate-js) 的 MOBI/KF8、FB2 模块及 fflate；固定源代码和 MIT 许可随项目保留，许可随 APK 分发。仅打包解析与导入适配，不包含其整套界面；无需网络或在线转换服务。转换脚本[重建说明](tools/import-converter/README.md)。
 
 目标远端：`git@github.com:Jingtine/MIUing-reading-software.git`。
+
+书库备份使用 [Zip4j](https://github.com/srikanth-lingala/zip4j/releases/tag/v2.11.6) 2.11.6（Apache-2.0），通过系统文件选择器读写 ZIP/Zip64。许可证随 APK 分发于 assets/licenses/zip4j-LICENSE.txt。

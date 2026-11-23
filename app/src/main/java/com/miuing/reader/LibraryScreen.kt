@@ -27,7 +27,7 @@ import androidx.compose.ui.semantics.semantics
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
-@Composable fun LibraryScreen(store: LibraryStore, importing: Boolean, snack: SnackbarHostState, onImport:()->Unit,onOpen:(Book)->Unit) {
+@Composable fun LibraryScreen(store: LibraryStore, importing: Boolean, snack: SnackbarHostState, onImport:()->Unit,onOpen:(Book)->Unit, backupActions: @Composable () -> Unit = {}) {
     var tab by rememberSaveable { mutableStateOf("主页") }
     var filter by rememberSaveable { mutableStateOf("全部") }
     var query by rememberSaveable { mutableStateOf("") }
@@ -81,6 +81,7 @@ import java.io.File
                             if(!sidebar) listOf("主页","书库","搜索").forEach { name -> TextButton(onClick={navigate(name)}) { Text(name,color=if(tab==name) Accent else MaterialTheme.colorScheme.onSurface) } }
                         } else Image(painterResource(R.drawable.miuing_icon),"MIUing",Modifier.size(32.dp))
                         Spacer(Modifier.weight(1f))
+                        backupActions()
                         IconButton(onClick=onImport,enabled=!importing) { Icon(Icons.Default.Add,"导入图书",tint=Accent) }
                     }
                     Text(if(tab=="书库" && filter!="全部") filter else tab,fontSize=34.sp,fontWeight=FontWeight.Bold,letterSpacing=(-1).sp)

@@ -48,3 +48,7 @@
 - [本轮 iOS18 主题面板参考、取样及边界](theme-panel-reference.md)。
 - [iOS18 文字阅读控件与菜单参考](reader-chrome-reference.md)。
 - [iPadOS 18 标签栏和边栏设计](https://www.apple.com.cn/newsroom/2024/09/ipados-18-is-now-available-taking-ipad-to-the-next-level/)。
+
+## 本地数据迁移
+
+0.7.1 增加显式书库 ZIP/Zip64 备份恢复：原文件、转换副本、封面、进度、书签、批注和藏书；恢复仅补入缺失图书，保留已有记录。字体和阅读外观设置不包含在备份中。详见 [备份记录](../library-backup-0.7.1.md)。

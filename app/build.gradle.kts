@@ -17,8 +17,8 @@ android {
         applicationId = "com.miuing.reader"
         minSdk = 26
         targetSdk = 36
-        versionCode = 21
-        versionName = "0.7.0"
+        versionCode = 22
+        versionName = "0.7.1"
         buildConfigField("boolean", "PERSONAL_FONTS", personalFonts.toString())
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -42,6 +42,7 @@ dependencies {
     implementation("androidx.webkit:webkit:1.12.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    implementation("net.lingala.zip4j:zip4j:2.11.6")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

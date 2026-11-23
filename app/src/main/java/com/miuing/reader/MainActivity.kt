@@ -44,7 +44,7 @@ class MainActivity : ComponentActivity() {
                 else libraryState.SaveableStateProvider("library") {LibraryScreen(store, importing, snack, onImport={picker.launch(arrayOf("*/*"))},onOpen={
                     if(importing) scope.launch {snack.showSnackbar("正在导入图书，请稍候")}
                     else {store.update(it.copy(opened=System.currentTimeMillis())); reading=it.id}
-                })}
+                },backupActions={LibraryBackupMenu(store,importing,snack) {importing=it}})}
             }
         }
     }

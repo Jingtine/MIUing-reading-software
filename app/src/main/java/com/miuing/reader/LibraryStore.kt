@@ -34,6 +34,38 @@ class LibraryStore(private val context: Context, private val root: File = File(c
     val collections = mutableStateListOf<String>()
     var loadError: String? = null
         private set
+    internal val directory get() = root
+    internal fun snapshot(): Pair<List<Book>, List<String>> {
+        check(loadError == null) { loadError!! }
+        return books.toList() to collections.toList()
+    }
+
+    /** One publication boundary: old files/records are never replaced. Called on Main. */
+    internal fun mergeBackup(incoming: List<Book>, names: List<String>, staging: File): RestoreResult {
+        check(loadError == null) { loadError!! }
+        val previousBooks = books.toList()
+        val previousCollections = collections.toList()
+        val missing = incoming.filter { candidate -> books.none { it.id == candidate.id } }
+        val moved = mutableListOf<File>()
+        try {
+            // Check every destination before moving the first one, including orphan directories.
+            missing.forEach { check(!File(root, it.id).exists()) { "发现同名书籍目录，请先修复书库后恢复" } }
+            missing.forEach { book ->
+                val destination = File(root, book.id)
+                check(File(staging, book.id).renameTo(destination)) { "无法保存恢复的图书" }
+                moved.add(destination)
+            }
+            books.addAll(missing)
+            collections.addAll((names + missing.flatMap { it.collections }).filter { it !in collections }.distinct())
+            persist()
+            return RestoreResult(missing.size, incoming.size - missing.size)
+        } catch (e: Exception) {
+            books.clear(); books.addAll(previousBooks)
+            collections.clear(); collections.addAll(previousCollections)
+            moved.forEach { it.deleteRecursively() }
+            throw e
+        }
+    }
     private val index get() = File(root, "index.json")
     init {
         root.mkdirs()
@@ -41,7 +73,7 @@ class LibraryStore(private val context: Context, private val root: File = File(c
             val data = JSONObject(String(android.util.AtomicFile(index).readFully(),Charsets.UTF_8))
             data.optJSONArray("collections")?.let { a -> repeat(a.length()) { collections.add(a.getString(it)) } }
             val a = data.getJSONArray("books")
-            repeat(a.length()) { books.add(decode(a.getJSONObject(it))) }
+            repeat(a.length()) { books.add(BookJson.decode(a.getJSONObject(it))) }
         } catch (e: Exception) { loadError = "书库记录无法读取：${e.localizedMessage}" }
     }
     suspend fun import(uri: Uri): Book {
@@ -139,24 +171,11 @@ class LibraryStore(private val context: Context, private val root: File = File(c
         val file = android.util.AtomicFile(index)
         val out = file.startWrite()
         try {
-            out.write(JSONObject().put("collections", JSONArray(collections)).put("books", JSONArray(books.map(::encode))).toString().toByteArray())
+            val data = JSONObject().put("collections", JSONArray(collections)).put("books", JSONArray(books.map(BookJson::encode))).toString().toByteArray()
+            out.write(data)
             file.finishWrite(out)
+            // AtomicFile can log a failed rename without throwing; do not publish memory-only records.
+            check(index.isFile && index.readBytes().contentEquals(data)) { "书库记录未能保存" }
         } catch (e: Exception) { file.failWrite(out); throw e }
-    }
-    private fun encode(b: Book) = JSONObject().apply {
-        put("id",b.id); put("title",b.title); put("author",b.author); put("format",b.format)
-        put("source",b.source); put("cover",b.cover); put("added",b.added); put("opened",b.opened)
-        put("chapter",b.chapter); put("position",b.position); put("anchor",b.anchor); put("finished",b.finished); put("want",b.wantToRead)
-        put("collections",JSONArray(b.collections))
-        put("marks",JSONArray(b.marks.map { JSONObject().put("chapter",it.chapter).put("position",it.position).put("label",it.label).put("anchor",it.anchor) }))
-        put("notes",JSONArray(b.notes.map { JSONObject().put("chapter",it.chapter).put("text",it.text).put("note",it.note).put("start",it.start).put("end",it.end) }))
-        put("pdfInk",JSONArray(b.pdfInk.map {stroke->JSONObject().put("page",stroke.page).put("color",stroke.color).put("width",stroke.width).put("points",JSONArray(stroke.points.map {JSONArray(listOf(it.x,it.y))}))}))
-    }
-    private fun decode(o: JSONObject): Book {
-        fun strings(key: String): List<String> = o.optJSONArray(key)?.let { a -> List(a.length()) { a.getString(it) } } ?: emptyList()
-        val marks = o.optJSONArray("marks")?.let { a -> List(a.length()) { i -> a.getJSONObject(i).let { Mark(it.getInt("chapter"),it.getDouble("position").toFloat(),it.getString("label"),it.optInt("anchor",-1)) } } } ?: emptyList()
-        val notes = o.optJSONArray("notes")?.let { a -> List(a.length()) { i -> a.getJSONObject(i).let { Note(it.getInt("chapter"),it.getString("text"),it.optString("note"),it.optInt("start",-1),it.optInt("end",-1)) } } } ?: emptyList()
-        val ink=o.optJSONArray("pdfInk")?.let {a->List(a.length()) {i->a.getJSONObject(i).let {s->val points=s.getJSONArray("points");PdfInk(s.getInt("page"),List(points.length()) {j->points.getJSONArray(j).let {PdfPoint(it.getDouble(0).toFloat(),it.getDouble(1).toFloat())}},s.optString("color","#D96828"),s.optDouble("width",.004).toFloat())}}} ?: emptyList()
-        return Book(o.getString("id"),o.getString("title"),o.getString("author"),o.getString("format"),o.getString("source"),o.optString("cover"),o.getLong("added"),o.optLong("opened"),o.optInt("chapter"),o.optDouble("position",0.0).toFloat(),o.optBoolean("finished"),o.optBoolean("want"),strings("collections"),marks,notes,o.optInt("anchor",-1),ink)
     }
 }
