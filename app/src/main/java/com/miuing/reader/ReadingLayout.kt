@@ -1,6 +1,7 @@
 package com.miuing.reader
 
 import android.os.Build
+import android.net.Uri
 import android.content.res.Configuration
 import android.webkit.WebView
 import androidx.webkit.WebViewAssetLoader
@@ -25,17 +26,20 @@ internal class ReadingLayout(
     val configuration=JSONObject(base).put("width",width).put("height",height)
     private val bookNotes=JSONArray(notes.map {JSONObject().put("chapter",it.chapter).put("text",it.text).put("start",it.start).put("end",it.end)})
     private val geometry=JSONObject(configuration.toString()).apply {
-        listOf("position","anchor","fragment","paper","ink","pageTurn","dragEnabled","notes","hasPreviousChapter","hasNextChapter","paginationKey").forEach {remove(it)}
+        listOf("position","anchor","fragment","paper","ink","pageTurn","dragEnabled","notes","hasPreviousChapter","hasNextChapter","paginationKey","documentUrl").forEach {remove(it)}
         put("bookNotes",bookNotes)
         if(optString("search").isNotEmpty()) put("searchChapter",chapter)
     }
     private val environment="physical-pages-1|${BuildConfig.VERSION_CODE}|${Build.FINGERPRINT}|${WebView.getCurrentWebViewPackage()?.versionName}|$systemTypography"
     val key=paginationDigest(environment+geometry.toString())
     val plan=PaginationPlan(root.parentFile!!.name+"|"+publication.chapters.joinToString("|") {root.toPath().relativize(it.path).toString()},key,if(width>=900) 2 else 1,publication.chapters.size,::preview)
-    init {configuration.put("paginationKey",key)}
+    private fun documentUrl(index:Int)=Uri.Builder().scheme("https").authority("appassets.androidplatform.net")
+        .path("/book/"+root.toPath().relativize(publication.chapters[index].path).toString().replace('\\','/')).build().toString()
+    init {configuration.put("paginationKey",key).put("documentUrl",documentUrl(chapter))}
     fun preview(index:Int):ReadingPreviewSpec {
         val config=JSONObject(configuration.toString()).apply {
             put("position",0);put("anchor",0);put("fragment","");put("dragEnabled",false)
+            put("documentUrl",documentUrl(index))
             put("hasPreviousChapter",index>0);put("hasNextChapter",index<publication.chapters.lastIndex)
             if(index!=chapter) put("search","")
             put("notes",JSONArray(notes.filter {it.chapter==index}.map {JSONObject().put("text",it.text).put("start",it.start).put("end",it.end)}))

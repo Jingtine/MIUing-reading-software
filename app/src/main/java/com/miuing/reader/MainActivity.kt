@@ -10,6 +10,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.launch
 
@@ -22,6 +23,7 @@ class MainActivity : ComponentActivity() {
             val dark = isSystemInDarkTheme()
             MaterialTheme(colorScheme = if(dark) darkColorScheme(primary=Accent,secondary=Accent) else lightColorScheme(primary=Accent,secondary=Accent,primaryContainer=Color(0xFFFFEADC),secondaryContainer=Color(0xFFFFEADC),background=Color.White,surface=Color.White)) {
                 val store = remember { LibraryStore(this) }
+                val libraryState=rememberSaveableStateHolder()
                 var reading by rememberSaveable { mutableStateOf<String?>(null) }
                 var importing by remember { mutableStateOf(false) }
                 val scope = rememberCoroutineScope()
@@ -38,9 +40,9 @@ class MainActivity : ComponentActivity() {
                 val active = store.books.firstOrNull { it.id == reading }
                 BackHandler(active != null) { reading = null }
                 if(active != null) ReaderScreen(active,store) { reading = null }
-                else LibraryScreen(store, importing, snack, onImport={picker.launch(arrayOf("*/*"))},onOpen={
+                else libraryState.SaveableStateProvider("library") {LibraryScreen(store, importing, snack, onImport={picker.launch(arrayOf("*/*"))},onOpen={
                     store.update(it.copy(opened=System.currentTimeMillis())); reading=it.id
-                })
+                })}
             }
         }
     }

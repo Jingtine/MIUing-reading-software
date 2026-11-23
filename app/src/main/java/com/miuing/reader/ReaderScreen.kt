@@ -39,6 +39,9 @@ import kotlin.math.roundToInt
     var history by rememberSaveable(initial.id, stateSaver = ReadingHistorySaver) { mutableStateOf(emptyList<ReadingLocation>()) }
     var controls by rememberSaveable { mutableStateOf(true) }
     var menuOpen by rememberSaveable { mutableStateOf(false) }
+    var footnoteOpen by remember(chapter,jump) {mutableStateOf(false)}
+    var dismissFootnote by remember {mutableIntStateOf(0)}
+    androidx.activity.compose.BackHandler(footnoteOpen) {dismissFootnote++}
     var pages by remember(chapter) { mutableStateOf<ReaderPageInfo?>(null) }
     var pagination by remember(initial.id) {mutableStateOf<BookPaginationState?>(null)}
     var menuPageMap by remember(initial.id) {mutableStateOf<BookPageMap?>(null)}
@@ -221,7 +224,8 @@ import kotlin.math.roundToInt
                             onLoadError={if(jump==readerJump) locationAvailable=false},
                             onSelectionRange={ if(panel?.editsNote != true) {selectedRange=it;selection=it.text} },
                             onLink={next,target->navigate(next,target=target)},onPages={pages=it},onPagination={pagination=it},
-                            searchIndex=searchOrdinal,onSearchMatch={searchMatch=it},locationCapture=locationCapture)
+                            searchIndex=searchOrdinal,onSearchMatch={searchMatch=it},locationCapture=locationCapture,
+                            dismissFootnote=dismissFootnote,onFootnoteState={footnoteOpen=it})
                     }
                 } ?: CircularProgressIndicator(color=Accent)
             }
@@ -234,7 +238,7 @@ import kotlin.math.roundToInt
             }
         }
     }
-    if (controls && book.format != "PDF") {
+    if (controls && book.format != "PDF" && !footnoteOpen) {
         Box(Modifier.fillMaxSize().systemBarsPadding()) {
             TextReaderChrome(theme, chapter, position, pages, scrolling, onClose, ::openReadingMenu, selectionActions,
                 onReturn=if(history.isEmpty()) null else ::returnToSource,returnEnabled=locationAvailable!=null,

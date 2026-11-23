@@ -117,6 +117,7 @@ public final class PublicationParserTest {
         } finally {
             try (var files=Files.walk(root)) { for(Path p:files.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(p); }
         }
+        FootnoteCases.run();
         System.out.println(passed+" passed, "+failed+" failed");
         if(failed>0) System.exit(1);
     }

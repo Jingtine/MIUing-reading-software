@@ -23,7 +23,7 @@ import org.json.JSONObject
 import java.io.File
 
 internal fun loadReaderScript(context:android.content.Context):String =
-    listOf("reader-text.js","reader-gestures.js","reader-typography.js","reader-pagination.js","reader.js").joinToString("\n") { asset ->
+    listOf("reader-text.js","reader-gestures.js","reader-typography.js","reader-pagination.js","reader-footnotes.js","reader.js").joinToString("\n") { asset ->
         context.assets.open(asset).bufferedReader().use { it.readText() }
     }
 
@@ -38,7 +38,8 @@ internal fun loadReaderScript(context:android.content.Context):String =
     onLocation:(Float,Int)->Unit={p,_->onPosition(p)},
     onSelectionRange:(SelectedText)->Unit={onSelection(it.text)},onLink:(Int,String)->Unit={i,_->onChapter(i)},
     onPages:(ReaderPageInfo)->Unit={},onLoadError:()->Unit={},onPagination:(BookPaginationState?)->Unit={},
-    searchIndex:Int=0,onSearchMatch:(SearchMatchInfo)->Unit={},locationCapture:ReadingLocationCapture?=null
+    searchIndex:Int=0,onSearchMatch:(SearchMatchInfo)->Unit={},locationCapture:ReadingLocationCapture?=null,
+    dismissFootnote:Int=0,onFootnoteState:(Boolean)->Unit={}
 ) {
     val context=androidx.compose.ui.platform.LocalContext.current
     val systemTypography=systemTypographyIdentity(androidx.compose.ui.platform.LocalConfiguration.current)
@@ -63,6 +64,7 @@ internal fun loadReaderScript(context:android.content.Context):String =
     val latestLink by rememberUpdatedState(onLink)
     val latestPages by rememberUpdatedState(onPages)
     val latestSearchMatch by rememberUpdatedState(onSearchMatch)
+    val latestFootnoteState by rememberUpdatedState(onFootnoteState)
     val latestLoadError by rememberUpdatedState(onLoadError)
     val path=publication.chapters[chapter].path.toFile()
     var html by remember(path) { mutableStateOf<String?>(null) }
@@ -85,6 +87,11 @@ internal fun loadReaderScript(context:android.content.Context):String =
         Text("系统网页组件不可用，请启用或更新 Android System WebView。");return
     }
     val initial=remember(web) { Triple(position,anchor,fragment) }
+    val footnotes=remember(web) {ReadingFootnotes(web,root,
+        {file->publication.chapters.any {it.path.toFile().canonicalFile==file}},
+        {file,fragment->val index=publication.chapters.indexOfFirst {it.path.toFile().canonicalFile==file};if(index>=0) latestLink(index,fragment)})}
+    DisposableEffect(footnotes) {onDispose {footnotes.close()}}
+    LaunchedEffect(web,dismissFootnote) {if(dismissFootnote>0) web.evaluateJavascript("if(window.miuingDismissFootnote) window.miuingDismissFootnote()",null)}
     val initialSearch=remember(web) { search }
     val configuration=JSONObject().apply {
         put("position",initial.first);put("anchor",initial.second);put("fragment",initial.third)
@@ -116,6 +123,9 @@ internal fun loadReaderScript(context:android.content.Context):String =
     bridge.turnPage={direction->if(loaded) host.turn(web,pageTurn,direction,theme.paper.toArgb()) {ready->web.evaluateJavascript("window.miuingAdvance($direction)") {ready()}}}
     bridge.onReady={host.ready(web)}
     bridge.onSearchMatch={latestSearchMatch(it)}
+    bridge.onFootnote={footnotes.open(it)}
+    bridge.onFootnoteNavigate={footnotes.original(it)}
+    bridge.onFootnoteState={if(!it) footnotes.cancel();latestFootnoteState(it)}
     bridge.onPagination={key,range->
         val layout=binding.layout
         if(binding.owner===web && layout?.key==key && !scrolling) paginator.source(layout.plan,chapter,range)

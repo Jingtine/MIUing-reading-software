@@ -28,6 +28,9 @@ internal class ReadingBridge(
     var onPagination:(String,ChapterPageRange)->Unit={_,_->}
     var onCounted:(Int,Int)->Unit={_,_->}
     var onSearchMatch:(SearchMatchInfo)->Unit={}
+    var onFootnote:(String)->Unit={}
+    var onFootnoteNavigate:(String)->Unit={}
+    var onFootnoteState:(Boolean)->Unit={}
     private fun dispatch(block:()->Unit) {main.post {if(active) block()}}
     @JavascriptInterface fun progress(p:Float,anchor:Int)=dispatch {if(p.isFinite()) location(p,anchor)}
     @JavascriptInterface fun pages(current:Int,total:Int)=dispatch {if(total>0 && current in 1..total) pages(ReaderPageInfo(current,total))}
@@ -51,6 +54,9 @@ internal class ReadingBridge(
         val match=SearchMatchInfo(index,total)
         if(match.valid) onSearchMatch(match)
     }
+    @JavascriptInterface fun openFootnote(href:String)=dispatch {if(href.length<=4096) onFootnote(href)}
+    @JavascriptInterface fun footnoteNavigate(href:String)=dispatch {if(href.length<=4096) onFootnoteNavigate(href)}
+    @JavascriptInterface fun footnoteState(open:Boolean)=dispatch {onFootnoteState(open)}
 }
 
 /** Use a concrete interface type so Android lint can validate the JS boundary. */

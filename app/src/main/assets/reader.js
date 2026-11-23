@@ -10,6 +10,10 @@
   let textIndex;
   const chineseTypography=new window.MIUingChineseTypography();
   const pagination=new window.MIUingPagination();
+  const footnotes=new window.MIUingFootnotes(()=>config,()=>gestures.cancel());
+  window.miuingDismissFootnote=()=>footnotes.close();
+  window.miuingShowFootnote=(html,original)=>footnotes.show(html,original);
+  window.miuingFootnoteError=(message,original)=>footnotes.show(message,original,true);
   window.miuingPageMetrics=()=>shell?pagination.pages(shell,config):null;
   window.miuingCountPages=token=>{
     const requested=config;
@@ -111,6 +115,7 @@
   window.miuingConfigure = next => {
     const textChanged = textIndex && textIndex.flushChanges();
     if (config && !textChanged && JSON.stringify(config) === JSON.stringify(next)) return;
+    footnotes.close();
     gestures.cancel();
     const previous = config && hasPosition ? { anchor: retainedAnchor>=0?retainedAnchor:window.miuingAnchor(), position: window.miuingProgress() } : null;
     if(!config) pendingInitial={anchor:next.anchor>=0?next.anchor:-1,fragment:next.fragment || '',position:next.position || 0,search:next.search || ''};

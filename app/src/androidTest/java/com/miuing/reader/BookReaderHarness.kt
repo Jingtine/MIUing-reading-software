@@ -17,7 +17,8 @@ import java.util.zip.ZipOutputStream
 import java.util.UUID
 
 /** Small real publication with an exact number of physical columns per chapter. */
-internal class BookReaderHarness(counts:List<Int> = listOf(3,2,4),holdCounting:Boolean=false):AutoCloseable {
+internal class BookReaderHarness(counts:List<Int> = listOf(3,2,4),holdCounting:Boolean=false,
+    transform:(Int,String)->String={_,html->html},extras:Map<String,String> = emptyMap()):AutoCloseable {
     val instrument=InstrumentationRegistry.getInstrumentation()
     val device=UiDevice.getInstance(instrument)
     private val context=instrument.targetContext
@@ -42,6 +43,8 @@ internal class BookReaderHarness(counts:List<Int> = listOf(3,2,4),holdCounting:B
             val entries=linkedMapOf("META-INF/container.xml" to "<container><rootfiles><rootfile full-path='book.opf'/></rootfiles></container>",
                 "book.opf" to "<package xmlns:dc='http://purl.org/dc/elements/1.1/'><metadata><dc:title>$title</dc:title></metadata><manifest>"+counts.indices.joinToString("") {"<item id='c$it' href='c$it.xhtml' media-type='application/xhtml+xml'/>"}+"</manifest><spine>"+counts.indices.joinToString("") {"<itemref idref='c$it'/>"}+"</spine></package>")
             counts.forEachIndexed {chapter,total->entries["c$chapter.xhtml"]="<html><body>"+(1..total).joinToString("") {"<div style='height:calc(100vh - 50px);break-after:column;break-inside:avoid' id='c${chapter}p$it'>Chapter $chapter page $it. 中文正文。</div>"}+"</body></html>"}
+            counts.indices.forEach {i->entries["c$i.xhtml"]=transform(i,entries.getValue("c$i.xhtml"))}
+            entries.putAll(extras)
             entries.forEach {(name,text)->zip.putNextEntry(ZipEntry(name));zip.write(text.toByteArray());zip.closeEntry()}
         }
         book=runBlocking {LibraryStore(context).import(Uri.fromFile(file))}
