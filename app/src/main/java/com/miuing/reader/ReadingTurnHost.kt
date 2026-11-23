@@ -97,7 +97,7 @@ internal class ReadingTurnHost(context:Context):FrameLayout(context) {
     fun turn(web:WebView,mode:String,direction:Int,paper:Int,advance:(()->Unit)->Unit) {
         cancelMeasurement();overlay.turn(web,mode,direction,paper,advance)
     }
-    fun begin(web:WebView,id:Int,direction:Int,position:Double,spec:ReadingPreviewSpec,paper:Int) {
+    fun begin(web:WebView,id:Int,direction:Int,position:Double,spec:ReadingPreviewSpec,paper:Int,mode:String="curl") {
         if(closed || main!==web || handoff!=null) return
         cancelMeasurement()
         reset()
@@ -108,7 +108,7 @@ internal class ReadingTurnHost(context:Context):FrameLayout(context) {
             if(gesture!==g || g.failed) return@afterReadingPaint
             val source=overlay.capture(web)
             if(source==null) {g.failed=true;settle(g);return@afterReadingPaint}
-            overlay.beginDrag(source,direction,paper);g.sourceReady=true
+            overlay.beginDrag(source,direction,paper,mode);g.sourceReady=true
             g.targetFrame?.let {overlay.targetFrame(it);g.targetFrame=null}
             overlay.dragTo(g.progress);settle(g)
         }

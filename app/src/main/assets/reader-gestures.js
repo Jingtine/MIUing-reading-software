@@ -52,7 +52,7 @@ window.MIUingReaderGestures = class {
       if(Math.abs(dy)>12 && Math.abs(dy)>=Math.abs(dx)) {t.blocked=true;return;}
       if(Math.abs(dx)<12 || Math.abs(dx)<=Math.abs(dy)) return;
       if(now-t.at>600) {t.blocked=true;return;}
-      if(!c.dragEnabled || c.pageTurn!=='curl' || typeof MIUing.dragBegin!=='function') return;
+      if(!c.dragEnabled || (c.pageTurn!=='curl' && c.pageTurn!=='slide') || typeof MIUing.dragBegin!=='function') return;
       t.direction=dx<0?1:-1;
       const target=this.actions.target(t.direction);
       this.suppress=true;

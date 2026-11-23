@@ -132,8 +132,8 @@ internal fun loadReaderScript(context:android.content.Context):String =
     }
     bridge.onDragBegin={id,direction,delta,targetPosition->
         val targetChapter=chapter+delta
-        if(loaded && targetChapter in publication.chapters.indices && !scrolling && pageTurn=="curl") {
-            binding.layout?.let {host.begin(web,id,direction,targetPosition,it.preview(targetChapter),theme.paper.toArgb())}
+        if(loaded && targetChapter in publication.chapters.indices && !scrolling && pageTurn in listOf("curl","slide")) {
+            binding.layout?.let {host.begin(web,id,direction,targetPosition,it.preview(targetChapter),theme.paper.toArgb(),pageTurn)}
         }
     }
     bridge.onDragMove={id,p->host.move(web,id,p)}

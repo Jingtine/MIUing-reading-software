@@ -5,7 +5,7 @@ const {readFileSync}=require('node:fs');
 const {resolve}=require('node:path');
 const {runInNewContext}=require('node:vm');
 
-function reader(chapterDelta=0) {
+function reader(chapterDelta=0,pageTurn='curl') {
   const handlers={},calls=[];let now=0;
   const native={};
   for(const name of ['dragBegin','dragMove','dragEnd','dragAbort','chapter','tap']) native[name]=(...args)=>calls.push([name,...args]);
@@ -15,7 +15,7 @@ function reader(chapterDelta=0) {
     getSelection:()=>({toString:()=>''}),Date:{now:()=>now}
   });
   new window.MIUingReaderGestures({
-    config:()=>({width:360,pageTurn:'curl',dragEnabled:true}),revision:()=>0,
+    config:()=>({width:360,pageTurn,dragEnabled:true}),revision:()=>0,
     target:()=>chapterDelta===null?null:({chapterDelta,position:0}),advance:direction=>calls.push(['advance',direction]),
     turn:direction=>calls.push(['turn',direction])
   });
@@ -45,4 +45,11 @@ test('a second finger cancels the held preview and consumes its release',()=>{
 test('dragging beyond a book edge does not prepare or navigate a page',()=>{
   const r=reader(null);r.event('touchstart',300);r.event('touchmove',120);r.event('touchend',120);
   assert.equal(r.calls.length,0);
+});
+test('slide prepares a held preview and requests one native commit on release',()=>{
+  const r=reader(0,'slide');r.event('touchstart',300);r.event('touchmove',120);
+  assert.equal(r.calls.filter(c=>c[0]==='dragBegin').length,1);
+  assert.equal(r.calls.filter(c=>c[0]==='advance').length,0);
+  r.event('touchend',120);
+  assert.deepEqual(r.calls.filter(c=>c[0]==='dragEnd').map(c=>c.slice(2)),[[true]]);
 });

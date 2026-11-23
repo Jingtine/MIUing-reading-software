@@ -95,7 +95,7 @@ import kotlin.math.roundToInt
     // null while loading, true for a published location, false after a load error.
     var locationAvailable by remember(initial.id, chapter, jump, scrolling) { mutableStateOf<Boolean?>(null) }
     var themeOpen by rememberSaveable {mutableStateOf(false)}
-    var pageTurn by rememberSaveable {mutableStateOf(preferences.getString("pageTurn","curl").let {if(it=="fade") "fade" else "curl"})}
+    var pageTurn by rememberSaveable {mutableStateOf(preferences.getString("pageTurn","curl").let {if(it in listOf("fade","slide")) it!! else "curl"})}
     val optionsStore=remember(preferences) {ThemeOptionsStore(preferences)}
     var options by remember(themeIndex) {mutableStateOf(optionsStore.load(themeIndex))}
     val effectiveOptions=options.effective(themeIndex)

@@ -91,7 +91,7 @@ import kotlinx.coroutines.launch
                                     } else Text("页面外观",Modifier.weight(1f),fontSize=15.sp)
                                     if(!isPdf) Box {
                                         IconButton(onClick={styleMenu=true},modifier=Modifier.size(52.dp,42.dp).background(control,RoundedCornerShape(10.dp))) {Icon(Icons.AutoMirrored.Outlined.Note,"翻页样式",tint=ink)}
-                                        DropdownMenu(styleMenu,{styleMenu=false}) {listOf("curl" to "卷页","fade" to "快速淡入淡出","scroll" to "滚动").forEach {(value,label)->
+                                        DropdownMenu(styleMenu,{styleMenu=false}) {listOf("curl" to "卷页","slide" to "平移","fade" to "快速淡入淡出","scroll" to "滚动").forEach {(value,label)->
                                             DropdownMenuItem(text={Text(label)},leadingIcon={if((value=="scroll" && scrolling) || (!scrolling && value==pageTurn)) Icon(Icons.Default.Check,null)},onClick={onStyle(value);styleMenu=false},modifier=if(value=="scroll") Modifier.semantics {contentDescription="连续滚动"} else Modifier)
                                         }}
                                     }

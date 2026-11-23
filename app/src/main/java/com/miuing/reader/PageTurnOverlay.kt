@@ -38,8 +38,8 @@ class PageTurnOverlay(context:Context):View(context) {
         } catch(_:RuntimeException) {captured?.recycle();null}
         catch(_:OutOfMemoryError) {captured?.recycle();null}
     }
-    internal fun beginDrag(source:Bitmap,forward:Int,paperColor:Int) {
-        clear();snapshot=source;direction=forward;paper=paperColor;style="curl";fraction=0f;interactive=true
+    internal fun beginDrag(source:Bitmap,forward:Int,paperColor:Int,mode:String="curl") {
+        clear();snapshot=source;direction=forward;paper=paperColor;style=mode;fraction=0f;interactive=true
         visibility=VISIBLE;invalidate()
     }
     internal fun targetFrame(frame:Bitmap) {destination?.recycle();destination=frame;invalidate()}
@@ -64,16 +64,22 @@ class PageTurnOverlay(context:Context):View(context) {
         snapshot=frame;fraction=0f;direction=forward;style=mode;paper=paperColor
         visibility=VISIBLE;invalidate()
         advance {
-            // Give Chromium two frames to paint the destination behind the snapshot.
-            postOnAnimation {postOnAnimation {
-                if(snapshot!==frame) return@postOnAnimation
-                animation=ValueAnimator.ofFloat(0f,1f).apply {
-                    duration=if(style=="fade") 180L else 420L
-                    addUpdateListener {fraction=it.animatedValue as Float;invalidate()}
-                    addListener(object:AnimatorListenerAdapter() {override fun onAnimationEnd(animation:Animator) {clear()}})
-                    start()
-                }
-            }}
+            // A slide composites both pages, so its target must be paint-confirmed.
+            if(style=="slide") web.afterReadingPaint {animateTurn(frame,web)}
+            else postOnAnimation {postOnAnimation {animateTurn(frame,web)}}
+        }
+    }
+    private fun animateTurn(frame:Bitmap,web:WebView) {
+        if(snapshot!==frame) return
+        if(style=="slide") {
+            destination=capture(web)
+            if(destination==null) {clear();return}
+        }
+        animation=ValueAnimator.ofFloat(0f,1f).apply {
+            duration=when(style) {"fade"->180L;"slide"->300L;else->420L}
+            addUpdateListener {fraction=it.animatedValue as Float;invalidate()}
+            addListener(object:AnimatorListenerAdapter() {override fun onAnimationEnd(animation:Animator) {clear()}})
+            start()
         }
     }
     fun clear() {
@@ -94,7 +100,8 @@ class PageTurnOverlay(context:Context):View(context) {
         val image=snapshot ?: return
         val w=width.toFloat();val h=height.toFloat();target.set(0f,0f,w,h)
         paint.shader=null
-        if(interactive && destination==null) {canvas.drawBitmap(image,null,target,paint);return}
+        if((interactive || style=="slide") && destination==null) {canvas.drawBitmap(image,null,target,paint);return}
+        if(style=="slide") {drawSlide(canvas,image,destination!!);return}
         destination?.let {canvas.drawBitmap(it,null,target,paint)}
         if(style=="fade") {paint.alpha=((1-fraction)*255).toInt();canvas.drawBitmap(image,null,target,paint);paint.alpha=255;return}
         val saved=canvas.save()
@@ -115,5 +122,23 @@ class PageTurnOverlay(context:Context):View(context) {
             canvas.drawRect(edge+fold,0f,edge+fold+w*.035f,h,paint);paint.shader=null
         }
         canvas.restoreToCount(saved)
+    }
+
+    /** iBook cover/slide geometry adapted from Peyilo/libreadview (MIT; assets/licenses). */
+    private fun drawSlide(canvas:Canvas,source:Bitmap,next:Bitmap) {
+        val w=width.toFloat();val h=height.toFloat()
+        val travel=if(direction>0) 1-fraction else fraction
+        val primary=if(direction>0) source else next
+        val bottom=if(direction>0) next else source
+        canvas.drawColor(paper)
+        fun page(bitmap:Bitmap,dx:Float) {
+            val state=canvas.save();canvas.translate(dx,0f)
+            canvas.drawBitmap(bitmap,null,target,paint);canvas.restoreToCount(state)
+        }
+        page(bottom,w*.25f*travel)
+        page(primary,w*(travel-1))
+        paint.color=Color.argb((80*travel).toInt(),0,0,0)
+        canvas.drawRect(w*travel,0f,w,h,paint)
+        paint.color=Color.WHITE
     }
 }

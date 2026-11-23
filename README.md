@@ -2,7 +2,7 @@
 
 Android 手机与平板离线阅读器，按 Apple Books 的书库组织与阅读体验开发。使用用户提供的猫咪 M 图标。
 
-当前为 **0.6.12 开发版**，主适配 Android 16（编译/目标 API 36），兼容下限 Android 8（API 26）。以 EPUB/TXT 文字阅读为开发重点，以流畅、美观、轻量和接近 Apple Books 的阅读体验为目标。功能与视觉对齐进度见 [对照清单](docs/reference/parity.md)。
+当前为 **0.6.13 开发版**，主适配 Android 16（编译/目标 API 36），兼容下限 Android 8（API 26）。以 EPUB/TXT 文字阅读为开发重点，以流畅、美观、轻量和接近 Apple Books 的阅读体验为目标。功能与视觉对齐进度见 [对照清单](docs/reference/parity.md)。
 
 ## 当前可用
 
@@ -17,9 +17,9 @@ Android 手机与平板离线阅读器，按 Apple Books 的书库组织与阅�
 - 主题自定义布局增加可选中文排版：首行缩进、段间距及浏览器严格中文断行；关闭时恢复书籍段落样式，保留原文和阅读锚点。
 - 目录、书签、笔记、搜索、书内链接和菜单跳转后，可通过左上返回入口逐次回到原文；最多保留当前会话的 20 条来源，旋转或 Activity 重建后继续有效。
 - 阅读页按固定原版截图校准返回位置、菜单图形和状态层级；无书籍字体时回退到系统衬线，保留发布者字体。状态文字满足各主题最低对比度，系统栏随阅读背景明暗并在退出后还原。
-- EPUB/TXT 卷页与快速淡入淡出效果，在“主题与设置”中选择；遵循系统关闭动画设置。向后跨章落在上一章末尾，超长章节按实际距离判断翻页边界。
+- EPUB/TXT 卷页、iBook 风格平移与快速淡入淡出效果，在“主题与设置”中选择；遵循系统关闭动画设置。向后跨章落在上一章末尾，超长章节按实际距离判断翻页边界。
 - 快速连续翻页可中断旧动画，及时响应新操作；翻页路径、渐变及矩形复用，减少每帧创建绘制对象。
-- 卷页跟随水平拖动，松手完成或回弹；支持相邻章节预览。拖动预览不改变阅读进度，取消、重排和页面重建不会误翻页。
+- 卷页与平移跟随水平拖动，松手完成或回弹；支持相邻章节预览。拖动预览不改变阅读进度，取消、重排和页面重建不会误翻页。
 - 横向慢滑也能翻页；原地长按和文字选择继续避免意外翻页。
 - 按原版参考调整的紧凑主题面板：字号、翻页、外观、亮度、3×2 六主题与独立“自定义”页面。
 - 每个主题独立保存书籍/衬线/无衬线/等宽字体、粗体、行距、页边距、字符/词间距与两端对齐；支持完成保存、放弃及还原。字体实际覆盖 EPUB 段落和行内样式，原始模式可恢复书籍字体。
@@ -77,6 +77,8 @@ Android16 主适配与分页边界书签修复见 [0.6.1 开发记录](docs/andr
 
 脚注弹层、完整封面与返回书库状态见 [0.6.12 开发记录](docs/footnotes-library-0.6.12.md)。
 
+iBook 风格平移、绘制确认与兼容性验证见 [0.6.13 开发记录](docs/ibook-slide-0.6.13.md)。
+
 本工作区额外在 `.tools` 中下载了 Gradle 与 Android SDK，均不纳入版本控制。若官方 Gradle 下载受网络限制，可使用本机已校验的 `.tools/gradle-8.13/bin/gradle.bat` 运行同样的任务。
 
 ## 测试
@@ -108,5 +110,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-core.ps1 -Jdk '
 - `Books.app/`：用户原始参考包，保留在本地，不加入 Git 或 APK。
 
 PDF 文本与批注处理使用 [PdfBox-Android](https://github.com/TomRoush/PdfBox-Android) 2.0.27.0，Apache-2.0 许可证与 NOTICE 随应用包含在 `app/src/main/assets/licenses/`。
+
+iBook 风格平移动效参考 [Peyilo/libreadview](https://github.com/Peyilo/libreadview) 的 IBookSlideEffect，在现有临时位图层适配；MIT 许可随应用包含。三个参考项目的适用性见[源码核验记录](docs/reference/reader-projects-2026-11-23.md)。
 
 目标远端：`git@github.com:Jingtine/MIUing-reading-software.git`。
