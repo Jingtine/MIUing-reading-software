@@ -4,7 +4,7 @@ Android 手机与平板离线阅读器，按 Apple Books 的书库组织与阅�
 
 当前为 **0.7.5 开发版**，主适配 Android 16（编译/目标 API 36），兼容下限 Android 8（API 26）。以可重排文字阅读为开发重点，以流畅、美观、轻量和接近 Apple Books 的阅读体验为目标。功能与视觉对齐进度见 [对照清单](docs/reference/parity.md)。
 
-[文档导航](docs/README.md) · [工作区整理说明](docs/maintenance/workspace-2026-11-25.md)
+[后续开发计划](docs/ROADMAP.md) · [文档导航](docs/README.md) · [工作区整理说明](docs/maintenance/workspace-2026-11-25.md)
 
 ## 当前可用
 

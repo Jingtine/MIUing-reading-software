@@ -5,6 +5,7 @@
 | 内容 | 入口 |
 | --- | --- |
 | 当前功能和原版对齐边界 | [Apple Books 对照清单](reference/parity.md) |
+| 后续方向、阶段顺序与验收标准 | [MIUing 后续开发计划书](ROADMAP.md) |
 | 最近一版实现与验证 | [0.7.5 笔记整理与导出](releases/notes-export-0.7.5.md) |
 | 历史版本记录 | [发布记录索引](releases/README.md) |
 | 原版与开源实现核对 | [参考资料说明](reference/README.md) |
