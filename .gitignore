@@ -10,3 +10,9 @@
 /.local-fonts/
 **/node_modules/
 /tools/import-converter/.bounded-mobi.js
+/dist/
+*.apk
+*.apk.*
+*.aab
+__pycache__/
+*.pyc

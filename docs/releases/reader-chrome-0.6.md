@@ -1,6 +1,6 @@
 # 文字阅读控件与代码整理 · 0.6.0
 
-本轮继续以 EPUB/TXT 为重点。正文页改为右上关闭、安静的章节状态、底部本章页码和右下阅读菜单；目录、主题、搜索、书签、高亮笔记与章节进度集中在菜单中。依据及与原版的区别见 [参考记录](reference/reader-chrome-reference.md)。
+本轮继续以 EPUB/TXT 为重点。正文页改为右上关闭、安静的章节状态、底部本章页码和右下阅读菜单；目录、主题、搜索、书签、高亮笔记与章节进度集中在菜单中。依据及与原版的区别见 [参考记录](../reference/reader-chrome-reference.md)。
 
 ## 结构与行为
 
@@ -41,4 +41,4 @@ Android 8 快照暴露了 DOM/位置断言未覆盖的黑色绘制块。关闭�
 
 这是一次文字阅读控件对齐和有边界的代码整理，并非完整 Apple Books 复刻。展开菜单的精确视觉、全书分页、位置返回历史、分享与方向锁定、跟手卷页、书库逐页校准仍需后续工作。实体设备尚未验证。没有引入通用状态框架，也没有重写 PDF 服务和书库持久化。
 
-旧渲染器兼容修复后，API26 手机与 API35 平板已重新完整通过31项，含打开和关闭菜单两种像素检查；API35 手机的现代渲染路径此前完整通过31项。已查看并保存[手机正文](previews/phone-text-reader-0.6.png)、[手机菜单](previews/phone-reading-menu-0.6.png)、[平板正文](previews/tablet-text-reader-0.6.png)和[平板菜单](previews/tablet-reading-menu-0.6.png)。
+旧渲染器兼容修复后，API26 手机与 API35 平板已重新完整通过31项，含打开和关闭菜单两种像素检查；API35 手机的现代渲染路径此前完整通过31项。已查看并保存[手机正文](../previews/phone-text-reader-0.6.png)、[手机菜单](../previews/phone-reading-menu-0.6.png)、[平板正文](../previews/tablet-text-reader-0.6.png)和[平板菜单](../previews/tablet-reading-menu-0.6.png)。

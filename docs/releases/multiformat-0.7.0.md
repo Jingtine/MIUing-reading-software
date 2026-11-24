@@ -4,7 +4,7 @@
 
 ## 整合方式
 
-固定 [Foliate-js 78914aef](https://github.com/johnfactotum/foliate-js/tree/78914aef4466eb960965702401634c2cb348e9b1) 的MOBI/KF8、FB2解析模块和其fflate0.8.2模块。源文件逐字节核对上游Git blob，保留原文；开发期用esbuild0.25.12生成兼容Chromium69的单个离线脚本，普通Gradle构建不需要Node或网络。见[源码说明](../third_party/foliate-js/README.md)与[重建步骤](../tools/import-converter/README.md)。
+固定 [Foliate-js 78914aef](https://github.com/johnfactotum/foliate-js/tree/78914aef4466eb960965702401634c2cb348e9b1) 的MOBI/KF8、FB2解析模块和其fflate0.8.2模块。源文件逐字节核对上游Git blob，保留原文；开发期用esbuild0.25.12生成兼容Chromium69的单个离线脚本，普通Gradle构建不需要Node或网络。见[源码说明](../../third_party/foliate-js/README.md)与[重建步骤](../../tools/import-converter/README.md)。
 
 新增格式在导入时启动临时本地WebView解析，输出章节、目录、内链、图片、样式和可用嵌入字体，再由有界Writer写成私有标准EPUB。保留原始文件、原格式标签和原始SHA256身份；同一文件去重。阅读时沿用现有界面与引擎，共用单/双栏分页、字号、字体、主题、搜索、高亮、笔记、书签、脚注与来源返回、位置恢复和翻页动效。
 
@@ -40,7 +40,7 @@
 
 平板初轮24项中23通过，测试在自行重设搜索配置后，未等双栏分页测量便立即跳转；加入测量完成等待并改用实际保存的批注复核后，整批24/24通过，应用APK没有因此改动。对同一最新版阅读测试，手机追加3/3（45.316s）、Android8追加3/3（61.873s）通过。
 
-真实应用中的自建测试图书截图：[手机FB2](previews/phone-fb2-reader-0.7.0.png)、[手机MOBI](previews/phone-mobi-reader-0.7.0.png)、[平板FB2](previews/tablet-fb2-reader-0.7.0.png)、[平板MOBI](previews/tablet-mobi-reader-0.7.0.png)，均已目视核对。截图额外等待WebView绘制确认和两个原生帧，避免在动画层刚隐藏时截到上一帧；并检查重建后实际DOM进度。对应手机2/2（38.967s）、平板2/2（37.495s）追加通过，APK未改动。图片不是原版对照图或静态设计稿。
+真实应用中的自建测试图书截图：[手机FB2](../previews/phone-fb2-reader-0.7.0.png)、[手机MOBI](../previews/phone-mobi-reader-0.7.0.png)、[平板FB2](../previews/tablet-fb2-reader-0.7.0.png)、[平板MOBI](../previews/tablet-mobi-reader-0.7.0.png)，均已目视核对。截图额外等待WebView绘制确认和两个原生帧，避免在动画层刚隐藏时截到上一帧；并检查重建后实际DOM进度。对应手机2/2（38.967s）、平板2/2（37.495s）追加通过，APK未改动。图片不是原版对照图或静态设计稿。
 
 ## 构建产物
 

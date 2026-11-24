@@ -47,5 +47,5 @@ Interfaces: `MIUingTextIndex.find(query)` returns `{start,end}` or null in curre
 - Task 1: initial RED 4/4; first implementation GREEN 7/7. Review adds 2 failing methods; fixed with boundary-aware DOM matching and shared lowercase/whitespace discovery. Targeted suite GREEN 9/9.
 - Final production APK: 0.6.4/code11, SHA256 863554537df792c8ae4b6e413221a0ff53b4b9c434df1906618189b0d57ce7a1; unchanged across device verification.
 - Phone API36: 45/45 (364.300s); tablet API36: 45/45 (338.183s); API26: 45/45 (304.442s). Core12/JVM1/build/JS syntax pass; lint0errors20warnings.
-- One independent review; three Important findings fixed. UI diagnostics and experiments removed. Tests use the real clickable result parent with bounded delivery retry and explicit async restoration/dismissal waits. Test failure history and limitations are recorded in docs/search-location-0.6.4.md.
+- One independent review; three Important findings fixed. UI diagnostics and experiments removed. Tests use the real clickable result parent with bounded delivery retry and explicit async restoration/dismissal waits. Test failure history and limitations are recorded in docs/releases/search-location-0.6.4.md.
 - Phone/tablet screenshots visually checked. Preserve the existing authorized feature branch/workspace, restore test emulators, commit and push. No PR or merge is requested.

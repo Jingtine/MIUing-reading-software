@@ -48,6 +48,6 @@
 
 一次只读代码审查未发现技术问题，仅指出个人构建说明仍是旧叙述，现已补齐开关、目录、缺文件失败及默认不包含行为。最终两包的资产和哈希均复核，系统字库及个人 APK 未进入 Git；测试模拟器尺寸/密度已还原并关闭。
 
-新增 OFL 字库的实际截图：手机 [思源黑体](previews/phone-body-source-han-sans-0.6.8.png)、[霞鹜文楷](previews/phone-body-lxgw-wenkai-0.6.8.png)；平板 [思源黑体](previews/tablet-body-source-han-sans-0.6.8.png)、[霞鹜文楷](previews/tablet-body-lxgw-wenkai-0.6.8.png)。系统字库截图只保留在本地 `.tools/personal-*-kai-ti.png` 等文件中，不提交。
+新增 OFL 字库的实际截图：手机 [思源黑体](../previews/phone-body-source-han-sans-0.6.8.png)、[霞鹜文楷](../previews/phone-body-lxgw-wenkai-0.6.8.png)；平板 [思源黑体](../previews/tablet-body-source-han-sans-0.6.8.png)、[霞鹜文楷](../previews/tablet-body-lxgw-wenkai-0.6.8.png)。系统字库截图只保留在本地 `.tools/personal-*-kai-ti.png` 等文件中，不提交。
 
 本工作区交付文件位于 `app/build/outputs/apk/debug/MIUing-0.6.8-personal.apk` 和 `MIUing-0.6.8-standard.apk`；两者均为开发签名。个人包供本地使用，仓库默认构建仍为六款字库，不据此宣称额外字体分发权或 Apple 原版字体等价。

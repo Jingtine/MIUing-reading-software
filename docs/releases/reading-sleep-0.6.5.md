@@ -24,6 +24,6 @@ Android 使用当前阅读 View 的有界亮屏请求，不修改系统设置，
 
 完整套件为原有45项加本轮5项；相关交互套件包含计时4项、阅读控件14项、翻页8项、主题2项及 PDF 界面1项。文字解析与 PDF 数据代码未改动，兼容端复跑相关交互，主适配手机运行完整套件。
 
-核心12/12、JVM几何1/1、开发包/测试包构建与 JS 语法检查通过；lint 为0 errors、20 warnings，没有新增警告。已目视检查[手机设置](previews/phone-reading-sleep.png)和[平板设置](previews/tablet-reading-sleep.png)，开关、说明文字和退出路径可见，正文视口仍保持原尺寸。
+核心12/12、JVM几何1/1、开发包/测试包构建与 JS 语法检查通过；lint 为0 errors、20 warnings，没有新增警告。已目视检查[手机设置](../previews/phone-reading-sleep.png)和[平板设置](../previews/tablet-reading-sleep.png)，开关、说明文字和退出路径可见，正文视口仍保持原尺寸。
 
 开发包为 0.6.5/code12，min26/target36；27,207,325 字节（约 25.9 MiB）。SHA256：`f60bca19711262e3a327eb11f6db970486f8c4d9e6f79f4bead2bbdfdf5bf2be`。

@@ -7,7 +7,7 @@ val personalFonts = providers.gradleProperty("personalFonts").orNull == "true"
 val personalFontAssets = rootProject.file(".local-fonts")
 if (personalFonts) {
     check(listOf("st-kaiti.ttf", "kai-ti.ttf").all { personalFontAssets.resolve("fonts/$it").isFile }) {
-        "Personal fonts require .local-fonts/fonts/st-kaiti.ttf and kai-ti.ttf; see docs/reading-fonts-0.6.8.md"
+        "Personal fonts require .local-fonts/fonts/st-kaiti.ttf and kai-ti.ttf; see docs/releases/reading-fonts-0.6.8.md"
     }
 }
 android {

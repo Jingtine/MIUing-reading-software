@@ -30,6 +30,6 @@
 - Base UI RED → GREEN4/4. Review ownership regression RED → GREEN5/5 including native WebView touch and no reset on ordinary recomposition.
 - API36 phone full50/50 (385.134s); API26 relevant29/29 (267.312s); API36 tablet relevant29/29 (304.037s). Core12/JVM1/build/lint0errors20warnings/JS syntax pass.
 - Ruling: Android uses bounded View keepScreenOn rather than writing global sleep settings; physical sleep timing remains system policy, not exact Mac timeout addition. Relevant29 covers sleep4/chrome14/turn8/theme2/PDF UI1 on compatibility/tablet; unchanged parser and PDF data code get full coverage on main API36 phone.
-- One Important ownership finding fixed with RED evidence. Minor deferred: initial lifecycle registration may replace the same pending callback once, with no accumulated requests or altered final state. Full record: docs/reading-sleep-0.6.5.md.
+- One Important ownership finding fixed with RED evidence. Minor deferred: initial lifecycle registration may replace the same pending callback once, with no accumulated requests or altered final state. Full record: docs/releases/reading-sleep-0.6.5.md.
 - Phone/tablet setting screenshots visually checked. Final APK0.6.5/code12 SHA256 f60bca19711262e3a327eb11f6db970486f8c4d9e6f79f4bead2bbdfdf5bf2be unchanged during verification.
 - Restore test emulators; commit/push existing authorized branch and verify SHA/clean state. Preserve the existing development workspace; no merge or PR requested.

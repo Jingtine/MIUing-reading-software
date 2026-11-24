@@ -24,7 +24,7 @@ EPUB/TXT 阅读页新增“卷页”和“快速淡入淡出”，入口在“�
 
 卷页在手势触发后播放，尚无手指跟随、中途取消回弹及跨章动画。当前以整个可见画面为翻页单位；平板双栏下翻动整个跨页画面。卷曲光影、纸张形变与原版界面仍需在原设备上逐页校准。PDF 继续使用原有逐页滚动与缩放路径。
 
-完整对齐范围见 [对照清单](reference/parity.md)。
+完整对齐范围见 [对照清单](../reference/parity.md)。
 
 ## 验证记录
 
@@ -45,5 +45,5 @@ EPUB/TXT 阅读页新增“卷页”和“快速淡入淡出”，入口在“�
 
 调试 APK：26,978,044 字节，SHA-256：`c9c772b30b50d545a5ac3929ec46e1948108e693e9647213695c754c81fda7fd`。
 
-手机实际中间帧：[卷页](previews/phone-curl-turn.png)、[快速淡入淡出](previews/phone-fade-turn.png)。
-平板实际中间帧：[卷页](previews/tablet-curl-turn.png)、[快速淡入淡出](previews/tablet-fade-turn.png)。
+手机实际中间帧：[卷页](../previews/phone-curl-turn.png)、[快速淡入淡出](../previews/phone-fade-turn.png)。
+平板实际中间帧：[卷页](../previews/tablet-curl-turn.png)、[快速淡入淡出](../previews/tablet-fade-turn.png)。

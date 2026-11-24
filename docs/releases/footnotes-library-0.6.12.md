@@ -41,7 +41,7 @@ Android8常规版首轮17项中16通过；UiScrollable在列表中段误报滚�
 
 Android8个人版一次52项批次在第42项开始后中断且没有生成总结，没有把它当作整批通过。前41项已有成功记录；分页7项、拖动8项、初始定位2项及最终书库/脚注3项单独重跑20/20通过，覆盖此前未完成部分与最新测试。随后360dp窄窗口（945px / 420dpi）3项也通过（31.512s）。中断日志及复跑记录保留在本地`.tools`。
 
-截图等待Native控件隐藏和WebView绘制完成后保存，已目视核对：[手机脚注](previews/phone-footnote-popup-0.6.12.png)、[平板脚注](previews/tablet-footnote-popup-0.6.12.png)、[手机网格](previews/phone-library-grid-0.6.12.png)、[手机列表](previews/phone-library-list-0.6.12.png)、[平板网格](previews/tablet-library-grid-0.6.12.png)、[平板列表](previews/tablet-library-list-0.6.12.png)。青色矩形为刻意生成的横版/狭长封面测试数据；图片保留完整比例。
+截图等待Native控件隐藏和WebView绘制完成后保存，已目视核对：[手机脚注](../previews/phone-footnote-popup-0.6.12.png)、[平板脚注](../previews/tablet-footnote-popup-0.6.12.png)、[手机网格](../previews/phone-library-grid-0.6.12.png)、[手机列表](../previews/phone-library-list-0.6.12.png)、[平板网格](../previews/tablet-library-grid-0.6.12.png)、[平板列表](../previews/tablet-library-list-0.6.12.png)。青色矩形为刻意生成的横版/狭长封面测试数据；图片保留完整比例。
 
 没有实体设备帧时间、耗电或内存峰值数据。
 

@@ -7,4 +7,4 @@ Source: [johnfactotum/foliate-js](https://github.com/johnfactotum/foliate-js/tre
 
 Full distribution notices: [Foliate-js](../../app/src/main/assets/licenses/foliate-js-LICENSE.txt), [fflate](../../app/src/main/assets/licenses/fflate-LICENSE.txt). These files are also packaged inside every APK.
 
-Only these parsing modules are bundled. The Foliate renderer/demo, PDF.js, network catalogues, and reader UI are not included. MIUing's own import adapter lives in [tools/import-converter](../../tools/import-converter/). Bounded decompression patches are applied during the build; original upstream files remain unchanged. An upstream update must deliberately review/update these insertion points and rerun real format/WebView tests.
+Only these parsing modules are bundled. The Foliate renderer/demo, PDF.js, network catalogues, and reader UI are not included. MIUing's own import adapter lives in [tools/import-converter](../../tools/import-converter). Bounded decompression patches are applied during the build; original upstream files remain unchanged. An upstream update must deliberately review/update these insertion points and rerun real format/WebView tests.

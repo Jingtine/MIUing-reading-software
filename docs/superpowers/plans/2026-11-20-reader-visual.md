@@ -23,4 +23,4 @@
 
 Baseline RED: corrected AVD density first, then confirmed wrong return corner and missing serif fallback. Targeted GREEN5/5. One review found insufficient status contrast; new test reproduced it, minimum-alpha calculation passed all twelve palettes. Dark system-bar screenshot exposed black icons; actual-window regression reproduced and verified flags/colors restore on leaving reading. Shared system-bar appearance also applies to PDF; its controls and data handling remain unchanged.
 
-Frozen package verification: Core12/12, JVM1/1, build successful, JS syntax passed, lint0errors/20existing warnings. API36 phone53/53; API26 and API36 tablet related32/32 each. Exact timings, package hash, screenshots and remaining differences are in docs/reader-visual-0.6.6.md. No application source changes after that build.
+Frozen package verification: Core12/12, JVM1/1, build successful, JS syntax passed, lint0errors/20existing warnings. API36 phone53/53; API26 and API36 tablet related32/32 each. Exact timings, package hash, screenshots and remaining differences are in docs/releases/reader-visual-0.6.6.md. No application source changes after that build.

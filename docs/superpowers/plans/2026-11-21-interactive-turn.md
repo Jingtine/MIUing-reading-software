@@ -1,6 +1,6 @@
 # Interactive page turn implementation plan
 
-Spec: `docs/interactive-turn-design-0.6.9.md`.
+Spec: `docs/superpowers/specs/2026-11-21-interactive-turn-design.md`.
 Execute inline on the existing authorized feature branch `feat/miuing-android`. No dependencies or font data changes; preserve personal build isolation. Existing permission to push this repository applies.
 
 1. Add real WebView drag regression tests for held preview, cancel and accepted release. Run them against 0.6.8 and record expected failure before implementing.

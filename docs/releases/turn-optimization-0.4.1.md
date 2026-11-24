@@ -31,5 +31,5 @@
 
 17 项由书库 3 项、翻页 7 项、PDF 服务 3 项、PDF 界面 1 项、阅读冒烟 2 项、正文定位与高亮 1 项组成。
 
-[手机卷页中间帧](previews/phone-curl-optimized.png)已检查，渐变、纸背与折痕位置正常。截图临时减慢系统动画以捕获中间帧，测试结束后恢复设置。
-[平板双栏中间帧](previews/tablet-curl-optimized.png)也已检查，绘制复用后的渐变显示正常。
+[手机卷页中间帧](../previews/phone-curl-optimized.png)已检查，渐变、纸背与折痕位置正常。截图临时减慢系统动画以捕获中间帧，测试结束后恢复设置。
+[平板双栏中间帧](../previews/tablet-curl-optimized.png)也已检查，绘制复用后的渐变显示正常。

@@ -48,4 +48,4 @@ Baseline: 2c02c54, clean working tree. PDFBox Android is Apache-2.0, documented 
 - Independent PDF review identified Activity-scoped export cancellation, stale search overlay and repeated page-tree walks. Added application-owned staged export, query reset and cached single-page extraction; follow-up review found no remaining material issue in export ownership.
 - `:core:check :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest` succeeded; core 12/12, geometry 1/1. `:app:lintDebug` succeeded.
 - `adb -s <serial> shell am instrument -w com.miuing.reader.test/androidx.test.runner.AndroidJUnitRunner`: API35 phone 10/10 (59.120s), API35 tablet 10/10 (61.200s), API26 Google APIs 10/10 (63.645s). Final logs are local `.tools/pdf-final-api35.log`, `pdf-final-tablet.log`, `pdf-stable-api26.log`.
-- Screenshots inspected on phone and tablet. Debug APK 26,950,064 bytes. Limitations and evidence recorded in docs/pdf-parity-0.3.md; full original-app parity remains ongoing.
+- Screenshots inspected on phone and tablet. Debug APK 26,950,064 bytes. Limitations and evidence recorded in docs/releases/pdf-parity-0.3.md; full original-app parity remains ongoing.

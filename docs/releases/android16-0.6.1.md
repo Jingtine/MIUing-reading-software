@@ -18,10 +18,10 @@ aapt已确认包版本0.6.1/code8、compileSdk36、targetSdk36、minSdk26。核�
 
 最终开发包26,770,766字节，SHA256：`27007618331408bb5c07c1f48f183a5aad3836a42b47ce0c0f513f37931c3f3c`。核心12/12、JVM1/1、构建及JS语法检查通过，lint为0 errors、20 warnings。
 
-关于整体移植：已重新检查原包，见[移植可行性记录](reference/bundle-portability.md)。Mac编译程序不能直接转换成Android安装包；已有CSS、文案和资源可以核对复用，三个小脚本并非完整阅读引擎。Android继续复用系统WebView、文件选择器等组件，避免无谓地重写系统能力。
+关于整体移植：已重新检查原包，见[移植可行性记录](../reference/bundle-portability.md)。Mac编译程序不能直接转换成Android安装包；已有CSS、文案和资源可以核对复用，三个小脚本并非完整阅读引擎。Android继续复用系统WebView、文件选择器等组件，避免无谓地重写系统能力。
 
 独立只读审查未发现Critical/Important问题；补上返回测试等待菜单附着的时机，并记录实际书签修复。当前验证覆盖完成后的系统Back路由，未覆盖预测返回手势的进度/中途取消、厂商刘海屏及实体设备。
 
 本轮升级平台目标、修复实测分页边界问题并验证已有行为，不宣称因此完成Apple Books全部复刻。
 
-已检查并保存[Android16手机正文](previews/android16-phone-reader.png)、[手机菜单](previews/android16-phone-menu.png)、[平板正文](previews/android16-tablet-reader.png)、[平板菜单](previews/android16-tablet-menu.png)，核对系统栏边界、右下菜单与双栏布局。测试后关闭模拟器并恢复测试设置。
+已检查并保存[Android16手机正文](../previews/android16-phone-reader.png)、[手机菜单](../previews/android16-phone-menu.png)、[平板正文](../previews/android16-tablet-reader.png)、[平板菜单](../previews/android16-tablet-menu.png)，核对系统栏边界、右下菜单与双栏布局。测试后关闭模拟器并恢复测试设置。

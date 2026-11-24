@@ -35,4 +35,4 @@
 | MIUing-0.7.4-standard.apk | 104042352 | `69bd4a364a04997a15309ddb0faa9e937a09f230b816ee6ad3f5495841b2d64f` |
 | MIUing-0.7.4-personal.apk | 120696214 | `ceb70248091bd5ab7f9c1872fad4f0b905ac63a516ec0bfbfdf864fd4248ded8` |
 
-安装包位于本地 `app/build/outputs/apk/debug/`，不上传APK或私人字库。实际截图：[手机](previews/phone-search-results-0.7.4.png)、[平板窗口](previews/tablet-search-results-0.7.4.png)。
+安装包位于本地 `app/build/outputs/apk/debug/`，不上传APK或私人字库。实际截图：[手机](../previews/phone-search-results-0.7.4.png)、[平板窗口](../previews/tablet-search-results-0.7.4.png)。

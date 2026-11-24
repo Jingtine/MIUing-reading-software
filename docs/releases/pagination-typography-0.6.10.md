@@ -31,7 +31,7 @@
 | Android8，1080×1920 / 420dpi，个人版 | 同上 | 49/49 | 369.941s |
 | 同上，常规版 | 缓存、初始定位、六款字体、主题、定位和导入 | 20/20 | 177.886s |
 
-实际渲染截图：[手机整本页码](previews/phone-whole-book-pages-0.6.10.png)、[平板双页范围](previews/tablet-whole-book-pages-0.6.10.png)、[手机中文设置](previews/phone-chinese-layout-controls-0.6.10.png)、[平板中文设置](previews/tablet-chinese-layout-controls-0.6.10.png)。页码截图使用逐页固定内容的回归书籍，留白属于测试内容。三个专用模拟器均检查测试书库为空、恢复窗口覆盖及字体/动画设置后关闭。
+实际渲染截图：[手机整本页码](../previews/phone-whole-book-pages-0.6.10.png)、[平板双页范围](../previews/tablet-whole-book-pages-0.6.10.png)、[手机中文设置](../previews/phone-chinese-layout-controls-0.6.10.png)、[平板中文设置](../previews/tablet-chinese-layout-controls-0.6.10.png)。页码截图使用逐页固定内容的回归书籍，留白属于测试内容。三个专用模拟器均检查测试书库为空、恢复窗口覆盖及字体/动画设置后关闭。
 
 Core12项、JVM4项、Node输入回归4项及五份 JavaScript 语法检查通过。两种构建均成功，Lint为0错误、22警告。
 

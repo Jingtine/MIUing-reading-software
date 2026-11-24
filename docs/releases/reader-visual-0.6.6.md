@@ -1,6 +1,6 @@
 # 阅读页视觉对照 · 0.6.6
 
-本轮依据已有的固定 iOS18 官方阅读页图，校准真正可观察的阅读页差异，参考来源见 [阅读控件依据](reference/reader-chrome-reference.md)。
+本轮依据已有的固定 iOS18 官方阅读页图，校准真正可观察的阅读页差异，参考来源见 [阅读控件依据](../reference/reader-chrome-reference.md)。
 
 ## 改动
 
@@ -32,12 +32,12 @@ Core 12/12，JVM 几何1/1，调试应用与仪器测试包构建成功，JavaSc
 
 实际运行截图已目视核对返回位置、正文留白、菜单图形及深色系统栏：
 
-- [手机：左上返回与菜单](previews/phone-reader-visual-0.6.6.png)
-- [手机：深色阅读](previews/phone-reader-dark-0.6.6.png)
-- [手机：深色搜索面板](previews/phone-reader-sheet-0.6.6.png)
-- [平板：双栏与左上返回](previews/tablet-reader-visual-0.6.6.png)
-- [平板：深色双栏](previews/tablet-reader-dark-0.6.6.png)
-- [平板：旋转窗口菜单](previews/tablet-reader-rotated-menu-0.6.6.png)
+- [手机：左上返回与菜单](../previews/phone-reader-visual-0.6.6.png)
+- [手机：深色阅读](../previews/phone-reader-dark-0.6.6.png)
+- [手机：深色搜索面板](../previews/phone-reader-sheet-0.6.6.png)
+- [平板：双栏与左上返回](../previews/tablet-reader-visual-0.6.6.png)
+- [平板：深色双栏](../previews/tablet-reader-dark-0.6.6.png)
+- [平板：旋转窗口菜单](../previews/tablet-reader-rotated-menu-0.6.6.png)
 
 这些是测试书籍的应用截图；原版参考位图没有提交到仓库或打入安装包。
 

@@ -49,8 +49,8 @@ Core12/12、JVM几何1/1、应用及仪器包构建、两份渲染 JavaScript �
 
 实际截图已经目视核对字形和阅读控件，均来自同一最终包：
 
-- 手机：[不明体](previews/phone-body-buming-0.6.7.png)、[思源宋体](previews/phone-body-source-han-0.6.7.png)、[方正晶宋](previews/phone-body-fz-jingsong-0.6.7.png)、[京華老宋体](previews/phone-body-kinghwa-0.6.7.png)。
-- 平板双栏：[思源宋体](previews/tablet-body-source-han-0.6.7.png)、[京華老宋体](previews/tablet-body-kinghwa-0.6.7.png)。
-- [Android 8：京華老宋体](previews/api26-body-kinghwa-0.6.7.png)。
+- 手机：[不明体](../previews/phone-body-buming-0.6.7.png)、[思源宋体](../previews/phone-body-source-han-0.6.7.png)、[方正晶宋](../previews/phone-body-fz-jingsong-0.6.7.png)、[京華老宋体](../previews/phone-body-kinghwa-0.6.7.png)。
+- 平板双栏：[思源宋体](../previews/tablet-body-source-han-0.6.7.png)、[京華老宋体](../previews/tablet-body-kinghwa-0.6.7.png)。
+- [Android 8：京華老宋体](../previews/api26-body-kinghwa-0.6.7.png)。
 
 测试设备已还原窗口尺寸、密度并关闭；使用原有项目开发签名。原版系统字库仍缺实际文件，未声称正文原版字体已全部对齐，也未进行实体设备和所有生僻字的逐字人工视觉验收。

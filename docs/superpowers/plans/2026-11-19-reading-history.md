@@ -47,5 +47,5 @@ Files: new `app/src/main/java/com/miuing/reader/ReadingLocation.kt`; modify `Rea
 - Final Gradle build/check/lint: successful; core: 12/12; JVM: 1/1; lint: 0 errors, 20 warnings; both reader scripts pass syntax checks.
 - Ruling: replace the earlier image-inspection limitation with actual visual checks — image viewing is available in the resumed session. Phone and tablet screenshots show readable text and unobstructed controls; exact Apple Books visual parity remains outside this verification.
 - Final APK repackaging changed ZIP size. All 279 ZIP entries match the tested installation byte-for-byte after decompression (SHA256 per entry); version remains 0.6.3/code10. No code changed during final device verification.
-- Existing review fixes and RED→GREEN evidence are recorded in `docs/reading-history-0.6.3.md`; no additional features were added during final verification.
+- Existing review fixes and RED→GREEN evidence are recorded in `docs/releases/reading-history-0.6.3.md`; no additional features were added during final verification.
 - Publication: commit and push to `feat/miuing-android`, then verify remote SHA and clean worktree. Keep the existing workspace and branch for continued development, as previously authorized.

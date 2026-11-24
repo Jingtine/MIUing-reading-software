@@ -38,7 +38,7 @@ Readium 为 BSD-3-Clause；Foliate 主程序为 GPLv3，KOReader 为 AGPLv3。�
 - Android 8 横屏系统选择器可能同时出现输入法/搜索编辑框，测试按实际 `android:id/title` 文件名资源定位，避免改错输入框。实际文件内容也通过系统 Downloads 读取验证。
 - 独立代码审查通过；两包的原有签名、脚本、许可与字体内容逐项核对，未混入样书或测试资源。尚未在实体设备执行本轮验证。
 
-[手机截图](previews/phone-notes-0.7.5.png) · [平板截图](previews/tablet-notes-0.7.5.png)
+[手机截图](../previews/phone-notes-0.7.5.png) · [平板截图](../previews/tablet-notes-0.7.5.png)
 
 | 安装包 | 字节数 | SHA-256 |
 | --- | ---: | --- |

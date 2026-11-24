@@ -1,6 +1,6 @@
 # 文字阅读与主题面板 · 0.5.0
 
-本轮重点为 EPUB/TXT。按固定 iOS18 官方界面参考重做“主题与设置”：标题/关闭、字号、翻页和外观、细亮度条、六张主题卡片、底部自定义。详细字体和布局移入独立页面。参考链接及近似实现边界见 [参考依据](reference/theme-panel-reference.md)。
+本轮重点为 EPUB/TXT。按固定 iOS18 官方界面参考重做“主题与设置”：标题/关闭、字号、翻页和外观、细亮度条、六张主题卡片、底部自定义。详细字体和布局移入独立页面。参考链接及近似实现边界见 [参考依据](../reference/theme-panel-reference.md)。
 
 ## 阅读行为
 
@@ -29,9 +29,9 @@
 
 API26 在系统字号 1.3 倍下另跑主题界面两项：2/2，42.056 秒，包含横屏小高度下字体入口和固定完成按钮。测试后恢复系统字号。24 项由书库 3、翻页 7、PDF 服务 3、PDF 界面 1、阅读冒烟 2、正文定位/高亮 1、主题存储 3、主题界面 2、首次布局 2 组成。
 
-已查看 [手机主题面板](previews/phone-theme-panel.png)、[手机自定义页](previews/phone-theme-customize.png)，并与官方截图对照主面板排列、卡片颜色及间距；大字号和横屏运行截图也已查看。Android 原生工具栏、图标和字体仍可见差异。
+已查看 [手机主题面板](../previews/phone-theme-panel.png)、[手机自定义页](../previews/phone-theme-customize.png)，并与官方截图对照主面板排列、卡片颜色及间距；大字号和横屏运行截图也已查看。Android 原生工具栏、图标和字体仍可见差异。
 
-[平板主题面板](previews/tablet-theme-panel.png)和[平板自定义页](previews/tablet-theme-customize.png)已检查：右下角面板边界完整，双栏正文仍正常显示；这仅证明本轮适配结果，尚未与原版 iPad 同版本截图逐像素比较。
+[平板主题面板](../previews/tablet-theme-panel.png)和[平板自定义页](../previews/tablet-theme-customize.png)已检查：右下角面板边界完整，双栏正文仍正常显示；这仅证明本轮适配结果，尚未与原版 iPad 同版本截图逐像素比较。
 
 调试 APK：27,078,801 字节，SHA-256：`41ab9fefead4f372c6f98c450b892eacb45436aaadf8037cb33ab24f6f1a9508`。
 
