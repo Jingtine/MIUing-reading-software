@@ -21,6 +21,9 @@ internal class ReadingTurnHost(context:Context):FrameLayout(context) {
     private var layoutKey=""
     private data class Measurement(val token:Any,val done:(Int?)->Unit)
     private var measurement:Measurement?=null
+    private var searchTask:((org.json.JSONObject?)->Unit)?=null
+    var layoutRevision=0
+        private set
     var measurementStarts=0
         private set
     val busy get()=closed || !sourceReady || main==null || gesture!=null || handoff!=null || overlay.visibility==VISIBLE
@@ -56,7 +59,10 @@ internal class ReadingTurnHost(context:Context):FrameLayout(context) {
         if(handoff!=document) return
         web.afterReadingPaint {if(main===web && handoff==document) {handoff=null;reset()}}
     }
-    fun invalidateLayout() {cancelMeasurement();handoff=null;reset();preview?.close();preview=null}
+    fun invalidateLayout() {
+        layoutRevision++;cancelMeasurement();handoff=null;reset()
+        if(searchTask!=null) cancelSearch() else {preview?.close();preview=null}
+    }
     fun viewportChanged(width:Int,height:Int):Boolean {
         if(width==viewportWidth && height==viewportHeight) return false
         viewportWidth=width;viewportHeight=height;invalidateLayout();return true
@@ -77,7 +83,7 @@ internal class ReadingTurnHost(context:Context):FrameLayout(context) {
         return preview
     }
     fun measure(spec:ReadingPreviewSpec,done:(Int?)->Unit):Any? {
-        if(busy || measurement!=null) return null
+        if(busy || measurement!=null || searchTask!=null) return null
         val task=Measurement(Any(),done);measurement=task;measurementStarts++
         val view=passive(spec)
         if(view==null) {completeMeasurement(task,-1);return task.token}
@@ -93,7 +99,18 @@ internal class ReadingTurnHost(context:Context):FrameLayout(context) {
         if(token!=null && task.token!==token) return
         completeMeasurement(task,null)
     }
-    fun releaseIdlePreview() {cancelMeasurement();if(gesture==null && handoff==null) {preview?.close();preview=null}}
+    fun releaseIdlePreview() {cancelMeasurement();cancelSearch();if(gesture==null && handoff==null) {preview?.close();preview=null}}
+    fun search(spec:ReadingPreviewSpec,query:String,limit:Int,done:(org.json.JSONObject?)->Unit):Boolean {
+        if(busy || measurement!=null || searchTask!=null) return false
+        searchTask=done
+        val view=passive(spec)
+        if(view==null) {cancelSearch();return true}
+        view.search(query,limit) {result->if(searchTask===done) {
+            searchTask=null;preview?.close();preview=null;done(result)
+        }}
+        return true
+    }
+    fun cancelSearch(owner:((org.json.JSONObject?)->Unit)?=null) {if(owner!=null && searchTask!==owner) return;val callback=searchTask ?: return;searchTask=null;preview?.close();preview=null;callback(null)}
     fun turn(web:WebView,mode:String,direction:Int,paper:Int,advance:(()->Unit)->Unit) {
         cancelMeasurement();overlay.turn(web,mode,direction,paper,advance)
     }
@@ -161,5 +178,5 @@ internal class ReadingTurnHost(context:Context):FrameLayout(context) {
         gesture?.targetFrame?.recycle();gesture=null
         preview?.cancelSeek();overlay.clear()
     }
-    fun close() {if(closed) return;closed=true;cancelMeasurement();handoff=null;reset();preview?.close();preview=null;main=null}
+    fun close() {if(closed) return;closed=true;cancelSearch();cancelMeasurement();handoff=null;reset();preview?.close();preview=null;main=null}
 }

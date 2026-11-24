@@ -48,12 +48,17 @@ import kotlin.math.roundToInt
     var menuLayoutKey by remember(initial.id) {mutableStateOf<String?>(null)}
     var menuProgress by remember(initial.id) {mutableFloatStateOf(initial.position)}
     var panel by remember { mutableStateOf<ReaderPanel?>(null) }
-    var search by remember { mutableStateOf("") }
+    var search by rememberSaveable(initial.id) { mutableStateOf("") }
     var searchTarget by rememberSaveable(initial.id) { mutableStateOf("") }
     var searchOrdinal by rememberSaveable(initial.id) {mutableIntStateOf(0)}
     var searchMatch by remember(chapter,jump,searchTarget) {mutableStateOf<SearchMatchInfo?>(null)}
     val locationCapture=remember(initial.id) {ReadingLocationCapture()}
-    var results by remember { mutableStateOf<List<Pair<Int,String>>>(emptyList()) }
+    var results by remember { mutableStateOf<List<TextSearchHit>>(emptyList()) }
+    var searchEngine by remember {mutableStateOf<BookSearchEngine?>(null)}
+    var activeHits by remember {mutableStateOf<List<TextSearchHit>>(emptyList())}
+    var searchGeneration by remember {mutableIntStateOf(0)}
+    var searchLimited by remember {mutableStateOf(false)}
+    val searchLifecycle by androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsState()
     var selection by remember { mutableStateOf("") }
     var selectedRange by remember { mutableStateOf(SelectedText()) }
     var editingNote by remember { mutableStateOf<Note?>(null) }
@@ -113,19 +118,27 @@ import kotlin.math.roundToInt
         try { publication=withContext(Dispatchers.IO) { store.open(initial) } }
         catch(e:Exception) { error=e.localizedMessage ?: "无法打开图书" }
     }
-    LaunchedEffect(search,publication,pdfService) {
-        results=emptyList();pdfHits=emptyList();pdfHit=null;searchProblem=null
-        if(search.isNotBlank() && publication!=null) {
+    LaunchedEffect(search,searchTarget,publication,pdfService,panel,searchEngine,searchLifecycle) {
+        val generation=++searchGeneration
+        searching=false
+        if(!searchLifecycle.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) return@LaunchedEffect
+        val recovering=panel!=ReaderPanel.Search && searchTarget.isNotBlank() && activeHits.isEmpty()
+        if(panel!=ReaderPanel.Search && !recovering) return@LaunchedEffect
+        val query=if(recovering) searchTarget else search
+        results=emptyList();pdfHits=emptyList();pdfHit=null;searchProblem=null;searchLimited=false
+        if(query.isNotBlank() && publication!=null) {
             searching=true
             try {
-                if(book.format=="PDF") pdfHits=pdfService?.search(search).orEmpty()
-                else results=withContext(Dispatchers.IO) {publication!!.chapters.mapIndexedNotNull { i,c ->
-                    val markup=com.miuing.core.PublicationParser.readMarkup(c.path)
-                    val plain=android.text.Html.fromHtml(markup,android.text.Html.FROM_HTML_MODE_LEGACY).toString()
-                    textSearchSnippet(plain,search)?.let { i to it }
-                }.take(50)}
-            } catch(e:CancellationException) {throw e} catch(e:Exception) {searchProblem=e.localizedMessage ?: "搜索失败"}
-            finally {searching=false}
+                kotlinx.coroutines.delay(300)
+                if(book.format=="PDF") pdfHits=pdfService?.search(query).orEmpty()
+                else if(searchEngine!=null) {
+                    val found=searchEngine!!.search(query,publication!!.chapters.size) {if(generation==searchGeneration) results=it}
+                    if(generation==searchGeneration) {results=found.hits;searchLimited=found.limited
+                        if(recovering) activeHits=found.hits}
+                }
+            } catch(e:kotlinx.coroutines.TimeoutCancellationException) {if(generation==searchGeneration) {results=emptyList();searchProblem="章节搜索超时，请缩小关键词后重试"}}
+            catch(e:CancellationException) {throw e} catch(e:Exception) {if(generation==searchGeneration) {results=emptyList();searchProblem=e.localizedMessage ?: "搜索失败"}}
+            finally {if(generation==searchGeneration) searching=false}
         }
     }
     LaunchedEffect(themeIndex,fontSize,scrolling) { preferences.edit().putInt("theme",themeIndex).putFloat("size",fontSize).putBoolean("scroll",scrolling).apply() }
@@ -175,9 +188,13 @@ import kotlin.math.roundToInt
     }
     LaunchedEffect(pagination?.key) {if(menuOpen && menuLayoutKey!=null && pagination?.key!=menuLayoutKey) menuOpen=false}
     val selectionActions: @Composable () -> Unit = {
-                if(selection.isBlank() && searchTarget.isNotBlank()) SearchNavigation(searchMatch,locationAvailable==true,theme,
-                    onMove={index->navigate(chapter,find=searchTarget,match=index,rememberSource=false)},
-                    onClose={locationCapture.capture {p,a->navigate(chapter,p,a,rememberSource=false)}})
+                if(selection.isBlank() && searchTarget.isNotBlank()) {
+                    val at=activeHits.indexOfFirst {it.chapter==chapter && it.ordinal==searchOrdinal}
+                    val global=if(at>=0 && searchMatch!=null) SearchMatchInfo(at,activeHits.size) else null
+                    SearchNavigation(global,locationAvailable==true,theme,
+                        onMove={index->activeHits.getOrNull(index)?.let {navigate(it.chapter,find=searchTarget,match=it.ordinal,rememberSource=false)}},
+                        onClose={if(history.isNotEmpty()) returnToSource() else locationCapture.capture {p,a->navigate(chapter,p,a,rememberSource=false)}},wholeBook=true)
+                }
                 if(selection.isNotBlank()) Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.Center) {
                     TextButton(onClick={val b=store.current(book.id);store.update(b.copy(notes=b.notes+Note(chapter,selection,start=selectedRange.start,end=selectedRange.end)));selection=""}) { Text("高亮标记") }
                     TextButton(onClick={editingNote=null;noteText="";panel=ReaderPanel.AddNote}) { Text("添加笔记") }
@@ -225,7 +242,8 @@ import kotlin.math.roundToInt
                             onSelectionRange={ if(panel?.editsNote != true) {selectedRange=it;selection=it.text} },
                             onLink={next,target->navigate(next,target=target)},onPages={pages=it},onPagination={pagination=it},
                             searchIndex=searchOrdinal,onSearchMatch={searchMatch=it},locationCapture=locationCapture,
-                            dismissFootnote=dismissFootnote,onFootnoteState={footnoteOpen=it})
+                            dismissFootnote=dismissFootnote,onFootnoteState={footnoteOpen=it},
+                            pauseCounting=panel==ReaderPanel.Search || searchTarget.isNotBlank(),onSearchEngine={searchEngine=it})
                     }
                 } ?: CircularProgressIndicator(color=Accent)
             }
@@ -301,9 +319,9 @@ import kotlin.math.roundToInt
                             else -> Unit
                         }
                     }
-                    ReaderPanel.Search -> ReaderSearchPanel(search, results, pdfHits, searching, searchProblem ?: if (book.format == "PDF") pdfProblem else null,
-                        onQuery = { search = it },
-                        onResult = { next -> keyboard?.hide(); navigate(next,find=search); panel = null },
+                    ReaderPanel.Search -> ReaderSearchPanel(search, results, pdfHits, searching, searchProblem ?: if (book.format == "PDF") pdfProblem else if(searchLimited) "已达1000条结果上限" else null,
+                        onQuery = { val next=it.take(256);if(next!=search) {searchGeneration++;results=emptyList();searching=true;search=next} },
+                        onResult = { hit -> keyboard?.hide(); activeHits=results.toList(); navigate(hit.chapter,find=search,match=hit.ordinal,rememberSource=searchTarget.isBlank()); panel = null },
                         onPdfHit = { hit -> keyboard?.hide(); savePosition(hit.page, 0f); pdfHit = hit; jump++; panel = null })
                     ReaderPanel.GoToPage -> ReaderPageJump(pdfService?.pageCount) { page -> keyboard?.hide(); savePosition(page, 0f); jump++; panel = null }
                     ReaderPanel.AddNote,ReaderPanel.EditNote -> {

@@ -86,7 +86,11 @@
       return range;
     }
 
-    find(query, ordinal = 0) {
+    findAll(query, limit = 1000) {
+      if(!query || !query.trim()) return {hits:[],more:false};
+      return this.find(query,0,Math.max(1,Math.min(1001,limit)));
+    }
+    find(query, ordinal = 0, collectLimit = 0) {
       if (!query || !query.trim()) return null;
       // Escape each literal part, allowing equivalent HTML whitespace without
       // changing the UTF-16 offsets returned by the actual DOM text match.
@@ -98,7 +102,8 @@
         if (!element || element === this.root) return this.root;
         if (groups.has(element)) return groups.get(element);
         const display = getComputedStyle(element).display;
-        const result = display === 'none' ? null : /^(block|list-item|table|flex|grid|flow-root)/.test(display) ? element : block(element.parentElement);
+        const parent = block(element.parentElement);
+        const result = display === 'none' || parent === null ? null : /^(block|list-item|table|flex|grid|flow-root)/.test(display) ? element : parent;
         groups.set(element, result); return result;
       };
       let node, previous = null, length = 0, broken = false;
@@ -114,25 +119,28 @@
       const wanted=Number.isFinite(ordinal)?Math.max(0,Math.floor(ordinal)):0;
       const expression=new RegExp(pattern,'g');
       let found,match=null,last=null,total=0;
+      const collected=[];
       while((found=expression.exec(folded))) {
         if(total===wanted) match=found;
         last=found;total++;
+        if(collectLimit) {if(collected.length<collectLimit) collected.push(found);else break;}
       }
       match=match || last;
-      if (!match) return null;
+      if (!match) return collectLimit?{hits:[],more:false}:null;
       // Most lowercasing preserves UTF-16 length. Handle expansions (e.g. İ)
       // without letting search-string offsets leak into stored DOM anchors.
+      let plainCursor=0,lowerCursor=0;
       const originalOffset = (offset, end) => {
         if (text.length === folded.length) return offset;
-        let plain = 0, lower = 0;
-        for (const character of text) {
-          const next = lower + character.toLowerCase().length;
-          if (offset < next) return plain + (end && offset > lower ? character.length : 0);
-          plain += character.length; lower = next;
+        if(offset<lowerCursor) {plainCursor=0;lowerCursor=0;}
+        while(plainCursor<text.length) {
+          const size=text.codePointAt(plainCursor)>0xffff?2:1;
+          const next=lowerCursor+text.slice(plainCursor,plainCursor+size).toLowerCase().length;
+          if(offset<next) return plainCursor+(end && offset>lowerCursor?size:0);
+          plainCursor+=size;lowerCursor=next;
         }
-        return plain;
+        return plainCursor;
       };
-      const start = originalOffset(match.index, false), end = originalOffset(match.index + match[0].length, true);
       const domOffset = (offset, isEnd) => {
         for (let i = 0; i < chunks.length; i++) {
           const chunk = chunks[i], limit = chunk.at + chunk.text.length;
@@ -140,6 +148,16 @@
         }
         const last = chunks[chunks.length - 1]; return last.offset + last.text.length;
       };
+      if(collectLimit) {
+        // Per-hit context adapted from Foliate-js search.js (MIT, John Factotum).
+        const clean=str=>str.replace(/\s+/g,' ');
+        return {hits:collected.map((value,index)=>{
+          const a=originalOffset(value.index,false),b=originalOffset(value.index+value[0].length,true);
+          return {index,pre:clean(Array.from(text.slice(Math.max(0,a-110),a)).slice(-50).join('')),
+            match:clean(text.slice(a,b)).slice(0,256),post:clean(Array.from(text.slice(b,b+110)).slice(0,50).join(''))};
+        }),more:total>collectLimit};
+      }
+      const start=originalOffset(match.index,false),end=originalOffset(match.index+match[0].length,true);
       return { start: domOffset(start, false), end: domOffset(end, true), index:Math.min(wanted,total-1), total };
     }
 

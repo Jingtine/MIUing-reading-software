@@ -39,7 +39,8 @@ internal fun loadReaderScript(context:android.content.Context):String =
     onSelectionRange:(SelectedText)->Unit={onSelection(it.text)},onLink:(Int,String)->Unit={i,_->onChapter(i)},
     onPages:(ReaderPageInfo)->Unit={},onLoadError:()->Unit={},onPagination:(BookPaginationState?)->Unit={},
     searchIndex:Int=0,onSearchMatch:(SearchMatchInfo)->Unit={},locationCapture:ReadingLocationCapture?=null,
-    dismissFootnote:Int=0,onFootnoteState:(Boolean)->Unit={}
+    dismissFootnote:Int=0,onFootnoteState:(Boolean)->Unit={},
+    pauseCounting:Boolean=false,onSearchEngine:(BookSearchEngine?)->Unit={}
 ) {
     val context=androidx.compose.ui.platform.LocalContext.current
     val systemTypography=systemTypographyIdentity(androidx.compose.ui.platform.LocalConfiguration.current)
@@ -49,14 +50,12 @@ internal fun loadReaderScript(context:android.content.Context):String =
     val paginator=remember(root) {BookPagination(File(context.cacheDir,"pagination"),host) {latestPagination(it)}}
     val binding=remember(root) {ReadingLayoutBinding()}
     val lifecycle=LocalLifecycleOwner.current.lifecycle
-    DisposableEffect(paginator,lifecycle) {
-        val observer=LifecycleEventObserver {_,event->
-            if(event==Lifecycle.Event.ON_STOP) paginator.foreground(false)
-            else if(event==Lifecycle.Event.ON_START) paginator.foreground(true)
-        }
-        lifecycle.addObserver(observer);paginator.foreground(lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
-        onDispose {lifecycle.removeObserver(observer);paginator.close()}
-    }
+    val searchEngine=remember(host,binding) {BookSearchEngine(host,binding)}
+    val latestSearchEngine by rememberUpdatedState(onSearchEngine)
+    DisposableEffect(searchEngine) {latestSearchEngine(searchEngine);onDispose {latestSearchEngine(null)}}
+    val lifecycleState by lifecycle.currentStateFlow.collectAsState()
+    LaunchedEffect(pauseCounting,lifecycleState) {paginator.foreground(lifecycleState.isAtLeast(Lifecycle.State.STARTED) && !pauseCounting)}
+    DisposableEffect(paginator) {onDispose {paginator.close()}}
     val latestLocation by rememberUpdatedState(onLocation)
     val latestTap by rememberUpdatedState(onTap)
     val latestSelection by rememberUpdatedState(onSelectionRange)

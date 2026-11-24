@@ -70,6 +70,21 @@ internal class ReadingPreview(context:Context,val spec:ReadingPreviewSpec,attach
         pending=action;action()
     }
     fun cancelSeek() {request++;pending=null;measured=null}
+    fun search(query:String,limit:Int,done:(JSONObject?)->Unit) {
+        val id=++request
+        val action={
+            if(!closed && id==request) {
+                if(failed) done(null)
+                else if(ready) {
+                    pending=null
+                    view.evaluateJavascript("JSON.stringify(new MIUingTextIndex(document.getElementById('miuing-content')).findAll(${JSONObject.quote(query)},$limit))") {raw->
+                        if(!closed && id==request) done(runCatching {JSONObject(org.json.JSONTokener(raw).nextValue() as String)}.getOrNull())
+                    }
+                }
+            }
+        }
+        pending=action;action()
+    }
     fun close() {
         if(closed) return
         closed=true;cancelSeek();scope.cancel();destroyReadingWeb(view,bridge)

@@ -73,23 +73,31 @@ fun ReaderNotes(notes: List<Note>, onNavigate: (Note) -> Unit, onEdit: (Note) ->
 @Composable
 fun ReaderSearchPanel(
     query: String,
-    results: List<Pair<Int, String>>,
+    results: List<TextSearchHit>,
     pdfHits: List<PdfHit>,
     searching: Boolean,
     problem: String?,
     onQuery: (String) -> Unit,
-    onResult: (Int) -> Unit,
+    onResult: (TextSearchHit) -> Unit,
     onPdfHit: (PdfHit) -> Unit
 ) {
     OutlinedTextField(query, onQuery, label = { Text("在图书中搜索") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    if(query.isNotBlank() && pdfHits.isEmpty()) Text(if(searching) "正在搜索…" else "找到 ${results.size} 处匹配",style=MaterialTheme.typography.labelSmall,modifier=Modifier.padding(vertical=8.dp))
+    if(problem!=null) Text(problem,Modifier.padding(vertical=8.dp))
     LazyColumn(Modifier.heightIn(max = 360.dp)) {
         items(pdfHits) { hit ->
             TextButton(onClick = { onPdfHit(hit) }, modifier = Modifier.semantics { contentDescription = "PDF 搜索结果 第 ${hit.page + 1} 页" }) { Text("第 ${hit.page + 1} 页 · ${hit.snippet}") }
         }
-        items(results) { result -> TextButton(onClick = { onResult(result.first) }, modifier = Modifier.semantics { contentDescription = "文字搜索结果 第 ${result.first + 1} 章" }) { Text(result.second) } }
+        items(results) { result -> TextButton(onClick = { onResult(result) }, enabled = !searching, modifier = Modifier.semantics { contentDescription = "文字搜索结果 第 ${result.chapter + 1} 章 第 ${result.ordinal + 1} 处" }) {
+            Column {Text("第 ${result.chapter+1} 章 · 第 ${result.ordinal+1} 处",style=MaterialTheme.typography.labelSmall)
+                Text(androidx.compose.ui.text.buildAnnotatedString {
+                    append(result.pre)
+                    pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight=androidx.compose.ui.text.font.FontWeight.Bold,color=Accent));append(result.match);pop()
+                    append(result.post)
+                })}
+        } }
         if (searching) item { CircularProgressIndicator(Modifier.padding(16.dp)) }
-        if (problem != null) item { Text(problem, Modifier.padding(vertical = 16.dp)) }
-        else if (!searching && query.isNotBlank() && results.isEmpty() && pdfHits.isEmpty()) item { Text("没有找到匹配内容", Modifier.padding(vertical = 20.dp)) }
+        if (problem==null && !searching && query.isNotBlank() && results.isEmpty() && pdfHits.isEmpty()) item { Text("没有找到匹配内容", Modifier.padding(vertical = 20.dp)) }
     }
 }
 
