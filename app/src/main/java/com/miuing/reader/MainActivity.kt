@@ -1,6 +1,11 @@
 package com.miuing.reader
 
 import android.os.Bundle
+import android.content.Intent
+import androidx.activity.viewModels
+import androidx.compose.foundation.layout.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
@@ -18,33 +23,34 @@ import kotlinx.coroutines.CancellationException
 val Accent = Color(0xFFD96828)
 
 class MainActivity : ComponentActivity() {
+    private val session by viewModels<LibrarySession>()
+    private fun acceptExternal(intent:Intent) {
+        try {session.submit(IncomingBooks.parse(intent),external=true)}
+        catch(e:Exception) {session.notify(e.localizedMessage ?: "无法接收文件")}
+    }
+    override fun onNewIntent(intent:Intent) {super.onNewIntent(intent);acceptExternal(intent)}
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if(savedInstanceState==null) acceptExternal(intent)
         setContent {
             val dark = isSystemInDarkTheme()
             MaterialTheme(colorScheme = if(dark) darkColorScheme(primary=Accent,secondary=Accent) else lightColorScheme(primary=Accent,secondary=Accent,primaryContainer=Color(0xFFFFEADC),secondaryContainer=Color(0xFFFFEADC),background=Color.White,surface=Color.White)) {
-                val store = remember { LibraryStore(this) }
+                val store = session.store
                 val libraryState=rememberSaveableStateHolder()
-                var reading by rememberSaveable { mutableStateOf<String?>(null) }
-                var importing by remember { mutableStateOf(false) }
-                val scope = rememberCoroutineScope()
+                val importing=session.busy
                 val snack = remember { SnackbarHostState() }
-                val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-                    scope.launch {
-                        importing = true
-                        var added=0; val errors=mutableListOf<String>()
-                        for(uri in uris) try { store.import(uri); added++ } catch(e:CancellationException) {throw e} catch(e:Exception) { errors.add(e.localizedMessage ?: "导入失败") }
-                        importing=false
-                        if(uris.isNotEmpty()) snack.showSnackbar(if(errors.isEmpty()) "已导入 $added 本图书" else "成功 $added 本；${errors.joinToString("；")}",duration=SnackbarDuration.Long)
-                    }
+                LaunchedEffect(session) {session.notices.collect {snack.showSnackbar(it,duration=SnackbarDuration.Long)}}
+                val picker=rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) {session.submit(it)}
+                val active = store.books.firstOrNull { it.id == session.reading }
+                BackHandler(active != null) {session.close()}
+                Box(Modifier.fillMaxSize()) {
+                    if(active != null) key(active.id) {ReaderScreen(active,store) {session.close()}}
+                    else libraryState.SaveableStateProvider("library") {LibraryScreen(store, importing, snack,
+                        onImport={picker.launch(arrayOf("*/*"))},
+                        onOpen={if(!importing) session.open(it)},
+                        backupActions={LibraryBackupMenu(store,importing,snack) {session.backupBusy=it}})}
+                    if(active!=null) SnackbarHost(snack,Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
                 }
-                val active = store.books.firstOrNull { it.id == reading }
-                BackHandler(active != null) { reading = null }
-                if(active != null) ReaderScreen(active,store) { reading = null }
-                else libraryState.SaveableStateProvider("library") {LibraryScreen(store, importing, snack, onImport={picker.launch(arrayOf("*/*"))},onOpen={
-                    if(importing) scope.launch {snack.showSnackbar("正在导入图书，请稍候")}
-                    else {store.update(it.copy(opened=System.currentTimeMillis())); reading=it.id}
-                },backupActions={LibraryBackupMenu(store,importing,snack) {importing=it}})}
             }
         }
     }

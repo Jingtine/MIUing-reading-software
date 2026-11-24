@@ -11,6 +11,7 @@ import com.miuing.core.PublicationParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.ensureActive
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -81,12 +82,8 @@ class LibraryStore(private val context: Context, private val root: File = File(c
         var created:File?=null
         try {
         val imported = withContext(Dispatchers.IO) {
-            val name = if (uri.scheme == "file") File(uri.path!!).name else
-                context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
-                    if (it.moveToFirst()) it.getString(0) else null
-                } ?: "book"
-            val format = name.substringAfterLast('.', "").lowercase()
-            require(format in listOf("epub", "pdf", "txt") || format in BookFormatImporter.formats) { "暂不支持此格式：$name" }
+            val info=ImportSource.resolve(context,uri)
+            val name=info.name
             val staging = File(root, "import-${UUID.randomUUID()}")
             try {
                 val digest = MessageDigest.getInstance("SHA-256")
@@ -94,15 +91,18 @@ class LibraryStore(private val context: Context, private val root: File = File(c
                     staging.outputStream().use { output ->
                         val buffer = ByteArray(65536); var total = 0L
                         while (true) {
+                            kotlinx.coroutines.currentCoroutineContext().ensureActive()
                             val n = input.read(buffer); if (n < 0) break
                             total += n
-                            require(total <= if(format in BookFormatImporter.formats) 64L*1024*1024 else 1024L*1024*1024) {
-                                if(format in BookFormatImporter.formats) "此格式目前支持64MiB以内的文件" else "文件超过 1 GB"
-                            }
+                            require(total <= 1024L*1024*1024) {"文件超过 1 GB"}
                             digest.update(buffer, 0, n); output.write(buffer, 0, n)
                         }
                     }
                 } ?: error("无法读取文件")
+                val header=ByteArray(minOf(4096L,staging.length()).toInt())
+                java.io.DataInputStream(staging.inputStream()).use {it.readFully(header)}
+                val format=ImportSource.detect(name,info.mime,header)
+                require(format !in BookFormatImporter.formats || staging.length()<=64L*1024*1024) {"此格式目前支持64MiB以内的文件"}
                 val id = digest.digest().joinToString("") { "%02x".format(it) }
                 val existing = books.firstOrNull { it.id == id }
                 if (existing != null) {

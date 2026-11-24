@@ -36,7 +36,8 @@ class EpubCompatibilityTest {
         assertEquals(anchor,h.saved().marks.single().anchor);assertEquals("兼容性笔记",h.saved().notes.single().note)
         h.scenario.recreate()
         h.await {h.js("!!window.miuingConfig && window.miuingLocation().anchor===$anchor")=="true"}
-        assertEquals("true",h.js("(()=>{const r=document.getElementById('p320').getBoundingClientRect(),s=document.getElementById('miuing-scroll').getBoundingClientRect();return r.left<s.right && r.right>s.left && r.top<s.bottom && r.bottom>s.top})()"))
+        // Config/retained anchor exist before the deferred font/layout restoration finishes.
+        h.await {h.js("window.miuingPageMetrics()!==null && (()=>{const r=document.getElementById('p320').getBoundingClientRect(),s=document.getElementById('miuing-scroll').getBoundingClientRect();return r.left<s.right && r.right>s.left && r.top<s.bottom && r.bottom>s.top})()")=="true"}
         h.js("window.miuingJump(1)");h.await {h.js("window.miuingProgress()>.99")=="true"}
         h.js("window.miuingJump(0)");h.await {h.js("window.miuingProgress()<.001")=="true"}
     }

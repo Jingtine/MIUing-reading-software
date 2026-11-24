@@ -56,3 +56,5 @@
 ## EPUB 标准字体资源
 
 0.7.2 复用固定 Foliate 算法支持 IDPF/Adobe 标准字体混淆，只处理解压后的字体副本、保留原始 EPUB；不会增加 DRM 解密。W3C/IDPF 真实样书和实际 WebView 字体加载验证见 [兼容性记录](../epub-compatibility-0.7.2.md)。
+
+0.7.3 已接入系统content URI打开和单本/多本分享；ViewModel串行队列与识别/授权边界见[系统接入记录](../external-import-0.7.3.md)。

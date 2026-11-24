@@ -2,9 +2,11 @@
 
 Android 手机与平板离线阅读器，按 Apple Books 的书库组织与阅读体验开发。使用用户提供的猫咪 M 图标。
 
-当前为 **0.7.2 开发版**，主适配 Android 16（编译/目标 API 36），兼容下限 Android 8（API 26）。以可重排文字阅读为开发重点，以流畅、美观、轻量和接近 Apple Books 的阅读体验为目标。功能与视觉对齐进度见 [对照清单](docs/reference/parity.md)。
+当前为 **0.7.3 开发版**，主适配 Android 16（编译/目标 API 36），兼容下限 Android 8（API 26）。以可重排文字阅读为开发重点，以流畅、美观、轻量和接近 Apple Books 的阅读体验为目标。功能与视觉对齐进度见 [对照清单](docs/reference/parity.md)。
 
 ## 当前可用
+
+- 系统打开/分享接入：单本导入后阅读、多本汇总；支持冷启动和已运行时接收，旋转不重复导入。详见 [0.7.3 接入记录](docs/external-import-0.7.3.md)。
 
 - 系统文件选择器导入 EPUB、PDF、TXT、MOBI、AZW、AZW3、FB2；应用内保留原始副本、摘要去重、逐项导入结果。
 - MOBI/AZW/AZW3/FB2 使用固定版本 Foliate 开源解析模块，离线生成私有 EPUB 阅读副本，共用目录、搜索、批注、脚注、主题和阅读进度。支持未加密 MOBI/KF8；KFX、DRM 和 Print Replica 暂不支持。新增转换格式原文件上限64MiB，细节见 [0.7.0 格式记录](docs/multiformat-0.7.0.md)。
