@@ -1,6 +1,5 @@
 package com.miuing.reader
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -47,24 +46,6 @@ fun ReaderBookmarks(marks: List<Mark>, onNavigate: (Mark) -> Unit, onRemove: (Ma
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { onNavigate(mark) }, modifier = Modifier.weight(1f)) { Text(mark.label) }
                 IconButton(onClick = { onRemove(mark) }) { Icon(Icons.Default.DeleteOutline, "移除书签") }
-            }
-        }
-    }
-}
-
-@Composable
-fun ReaderNotes(notes: List<Note>, onNavigate: (Note) -> Unit, onEdit: (Note) -> Unit, onRemove: (Note) -> Unit) {
-    LazyColumn(Modifier.heightIn(max = 420.dp)) {
-        if (notes.isEmpty()) item { Text("选择正文中的文字以添加高亮标记或笔记。", Modifier.padding(16.dp)) }
-        items(notes) { note ->
-            Column(Modifier.padding(vertical = 12.dp)) {
-                Text(note.text, Modifier.background(Color(0xFFEBCF67).copy(alpha = .35f)).padding(8.dp))
-                if (note.note.isNotBlank()) Text(note.note)
-                Row {
-                    TextButton(onClick = { onNavigate(note) }) { Text("前往原文") }
-                    TextButton(onClick = { onEdit(note) }) { Text("编辑") }
-                    TextButton(onClick = { onRemove(note) }) { Text("移除") }
-                }
             }
         }
     }

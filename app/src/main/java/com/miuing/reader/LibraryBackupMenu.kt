@@ -41,8 +41,8 @@ import java.util.*
     }
     val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri != null) runOperation("正在导出备份") {
-            BackupDocumentExport.write(context.cacheDir,
-                archive={LibraryBackup(store).export(it)},
+            DocumentExport.write(context.cacheDir,
+                content={LibraryBackup(store).export(it)},
                 destination={context.contentResolver.openOutputStream(uri,"wt") ?: error("无法写入备份文件")},
                 deleteDestination={DocumentsContract.deleteDocument(context.contentResolver,uri)})
             "书库备份已导出"

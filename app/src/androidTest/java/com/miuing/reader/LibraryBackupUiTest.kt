@@ -42,6 +42,7 @@ class LibraryBackupUiTest {
                 while(System.currentTimeMillis()<deadline && !device.currentPackageName.orEmpty().endsWith("documentsui")) Thread.sleep(100)
                 assertTrue("Action did not open Android document picker",device.currentPackageName.orEmpty().endsWith("documentsui"))
                 device.pressBack()
+                if (device.currentPackageName.orEmpty().endsWith("documentsui")) device.pressBack()
                 assertNotNull(device.wait(Until.findObject(By.desc("书库备份")),5000))
             }
         } finally {root.deleteRecursively()}

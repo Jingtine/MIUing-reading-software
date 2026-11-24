@@ -27,7 +27,8 @@ import kotlinx.coroutines.CancellationException
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable fun ReaderScreen(initial:Book,store:LibraryStore,onClose:()->Unit) {
+@Composable internal fun ReaderScreen(initial:Book,store:LibraryStore,
+    onNotesExport:(NotesDocument,NotesFormat)->Unit,notesExportBusy:Boolean,onClose:()->Unit) {
     val book=store.books.first { it.id==initial.id }
     var publication by remember(initial.id) { mutableStateOf<Publication?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -292,10 +293,14 @@ import kotlin.math.roundToInt
         onTheme={themeIndex=it},onOptions={options=it;optionsStore.save(themeIndex,it)},onFontSize={fontSize=it},
         onStyle={if(it=="scroll") scrolling=true else {scrolling=false;pageTurn=it}},onBrightness={brightness=it},onAppearance={appearance=it},onDismiss={themeOpen=false})
     panel?.let { title ->
+        // The notes toolbar needs room for a readable, scrollable excerpt list on small phones.
+        val panelState=key(title==ReaderPanel.Notes) {
+            rememberModalBottomSheetState(skipPartiallyExpanded=title==ReaderPanel.Notes)
+        }
         ModalBottomSheet(onDismissRequest={
             if(panel?.editsNote == true) {selection="";selectedRange=SelectedText();editingNote=null;noteText=""}
             panel=null
-        },containerColor=theme.paper,contentColor=theme.ink) {
+        },sheetState=panelState,containerColor=theme.paper,contentColor=theme.ink) {
             ReadingSystemBars((LocalView.current.parent as? DialogWindowProvider)?.window,theme.paper)
             Column(Modifier.fillMaxWidth().padding(horizontal=24.dp).navigationBarsPadding()) {
                 Text(title.title,fontSize=23.sp,modifier=Modifier.padding(bottom=20.dp))
@@ -312,7 +317,8 @@ import kotlin.math.roundToInt
                             ReaderPanel.Bookmarks -> ReaderBookmarks(book.marks,
                                 onNavigate = { mark -> navigate(mark.chapter,mark.position,mark.anchor); panel = null },
                                 onRemove = { mark -> val current = store.current(book.id); store.update(current.copy(marks = current.marks - mark)) })
-                            ReaderPanel.Notes -> ReaderNotes(book.notes,
+                            ReaderPanel.Notes -> ReaderNotes(book.notes,publication?.chapters?.map {it.title}.orEmpty(),book.format=="PDF",notesExportBusy,
+                                onExport = {groups,format -> panel=null;keyboard?.hide();onNotesExport(NotesDocument(book.title,book.author,groups),format)},
                                 onNavigate = { note -> navigate(note.chapter,a=note.start); panel = null },
                                 onEdit = { note -> editingNote = note; selection = note.text; selectedRange = SelectedText(note.text, note.start, note.end); noteText = note.note; panel = ReaderPanel.EditNote },
                                 onRemove = { note -> val current = store.current(book.id); store.update(current.copy(notes = current.notes - note)) })

@@ -5,19 +5,19 @@ import java.io.File
 import java.io.OutputStream
 import java.util.UUID
 
-/** Complete the archive locally before touching the SAF destination; own both cleanup paths. */
-internal object BackupDocumentExport {
+/** Finish a document locally before touching the SAF destination; own both cleanup paths. */
+internal object DocumentExport {
     suspend fun write(
         cache: File,
-        archive: suspend (OutputStream) -> Unit,
+        content: suspend (OutputStream) -> Unit,
         destination: () -> OutputStream,
         deleteDestination: () -> Unit
     ) {
-        val temporary=File(cache,"library-backup-${UUID.randomUUID()}.zip")
+        val temporary=File(cache,"document-export-${UUID.randomUUID()}.tmp")
         var complete=false
         try {
             withContext(Dispatchers.IO) {
-                temporary.outputStream().use {archive(it)}
+                temporary.outputStream().use {content(it)}
                 destination().use {output -> temporary.inputStream().use {input ->
                     val buffer=ByteArray(65536)
                     while(true) {

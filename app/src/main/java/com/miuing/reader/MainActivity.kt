@@ -24,6 +24,7 @@ val Accent = Color(0xFFD96828)
 
 class MainActivity : ComponentActivity() {
     private val session by viewModels<LibrarySession>()
+    private val noteExports by viewModels<NoteExportSession>()
     private fun acceptExternal(intent:Intent) {
         try {session.submit(IncomingBooks.parse(intent),external=true)}
         catch(e:Exception) {session.notify(e.localizedMessage ?: "无法接收文件")}
@@ -40,11 +41,18 @@ class MainActivity : ComponentActivity() {
                 val importing=session.busy
                 val snack = remember { SnackbarHostState() }
                 LaunchedEffect(session) {session.notices.collect {snack.showSnackbar(it,duration=SnackbarDuration.Long)}}
+                LaunchedEffect(noteExports) {noteExports.notices.collect {snack.showSnackbar(it,duration=SnackbarDuration.Long)}}
+                val notePicker=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {result ->
+                    noteExports.complete(if(result.resultCode==RESULT_OK) result.data?.data else null)
+                }
                 val picker=rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) {session.submit(it)}
                 val active = store.books.firstOrNull { it.id == session.reading }
                 BackHandler(active != null) {session.close()}
                 Box(Modifier.fillMaxSize()) {
-                    if(active != null) key(active.id) {ReaderScreen(active,store) {session.close()}}
+                    if(active != null) key(active.id) {ReaderScreen(active,store,
+                        onNotesExport={document,format -> noteExports.begin(document,format)?.let {intent ->
+                            try {notePicker.launch(intent)} catch(e:Exception) {noteExports.complete(null);session.notify("无法打开保存位置，请重试")}
+                        }}, notesExportBusy=noteExports.busy) {session.close()}}
                     else libraryState.SaveableStateProvider("library") {LibraryScreen(store, importing, snack,
                         onImport={picker.launch(arrayOf("*/*"))},
                         onOpen={if(!importing) session.open(it)},

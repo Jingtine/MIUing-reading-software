@@ -18,16 +18,16 @@ class BackupDocumentExportTest {
     }
     @Test fun destinationWriteFailureDeletesPartialDocumentAndTemporaryArchive()=fixture {root ->
         var removed=0
-        val result=runCatching {BackupDocumentExport.write(root,
-            archive={it.write(ByteArray(1000))},
+        val result=runCatching {DocumentExport.write(root,
+            content={it.write(ByteArray(1000))},
             destination={object:OutputStream() {override fun write(b:Int) {throw IOException("provider write failed")}}},
             deleteDestination={removed++})}
         assertTrue(result.exceptionOrNull() is IOException);assertEquals(1,removed);assertTrue(root.listFiles()!!.isEmpty())
     }
     @Test fun destinationCloseFailureAlsoDeletesPartialDocument()=fixture {root ->
         var removed=0
-        val result=runCatching {BackupDocumentExport.write(root,
-            archive={it.write(ByteArray(1000))},
+        val result=runCatching {DocumentExport.write(root,
+            content={it.write(ByteArray(1000))},
             destination={object:ByteArrayOutputStream() {override fun close() {throw IOException("provider close failed")}}},
             deleteDestination={removed++})}
         assertTrue(result.exceptionOrNull() is IOException);assertEquals(1,removed);assertTrue(root.listFiles()!!.isEmpty())
@@ -35,7 +35,7 @@ class BackupDocumentExportTest {
     @Test fun realCoroutineCancellationDuringCopyDeletesDestinationAndCache()=fixture {root ->
         val copied=CompletableDeferred<Unit>();val release=CountDownLatch(1);var removed=0
         val operation=CoroutineScope(currentCoroutineContext()).launch {
-            BackupDocumentExport.write(root,archive={it.write(ByteArray(100000))},
+            DocumentExport.write(root,content={it.write(ByteArray(100000))},
                 destination={object:ByteArrayOutputStream() {
                     override fun write(bytes:ByteArray,offset:Int,length:Int) {
                         super.write(bytes,offset,length);copied.complete(Unit)
@@ -49,7 +49,7 @@ class BackupDocumentExportTest {
     }
     @Test fun completedExportKeepsDestinationAndRemovesOnlyCache()=fixture {root ->
         var removed=0;val output=ByteArrayOutputStream();val data="portable backup".toByteArray()
-        BackupDocumentExport.write(root,archive={it.write(data)},destination={output},deleteDestination={removed++})
+        DocumentExport.write(root,content={it.write(data)},destination={output},deleteDestination={removed++})
         assertArrayEquals(data,output.toByteArray());assertEquals(0,removed);assertTrue(root.listFiles()!!.isEmpty())
     }
 }
