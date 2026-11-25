@@ -20,6 +20,7 @@ internal class ReadingBridge(
     private val main=Handler(Looper.getMainLooper())
     var active=true
     var turnPage:(Int)->Unit={}
+    var onOpenFragment: (String) -> Unit = {}
     var onReady:()->Unit={}
     var onDragBegin:(Int,Int,Int,Double)->Unit={_,_,_,_->}
     var onDragMove:(Int,Float)->Unit={_,_->}
@@ -39,6 +40,9 @@ internal class ReadingBridge(
     @JavascriptInterface fun chapter(direction:Int)=dispatch {if(direction==-1 || direction==1) chapter.invoke(direction)}
     @JavascriptInterface fun turn(direction:Int)=dispatch {if(direction==-1 || direction==1) turnPage(direction)}
     @JavascriptInterface fun ready()=dispatch {onReady()}
+    @JavascriptInterface fun openFragment(fragment: String) = dispatch {
+        if (fragment.isNotEmpty() && fragment.length <= 4096) onOpenFragment(fragment)
+    }
     @JavascriptInterface fun dragBegin(id:Int,direction:Int,chapterDelta:Int,position:Double)=dispatch {
         if(id>0 && (direction==-1 || direction==1) && chapterDelta in -1..1 && position.isFinite() && position in 0.0..1.0) onDragBegin(id,direction,chapterDelta,position)
     }

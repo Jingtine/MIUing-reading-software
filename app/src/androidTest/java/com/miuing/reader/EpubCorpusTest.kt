@@ -6,6 +6,8 @@ import android.view.View
 import android.webkit.WebView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.By
+import androidx.test.uiautomator.Until
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -99,6 +101,32 @@ class EpubCorpusTest {
                 assertTrue(paint.await(10,TimeUnit.SECONDS))
                 h.device.takeScreenshot(File(instrument.targetContext.getExternalFilesDir(null),"$name-reader.png"))
             }
+        }
+    }
+
+    @Test fun wastelandBacklinkJumpsWithinTheSameChapterAndReturnsToItsSource() {
+        val (corpus, _) = corpus()
+        BookReaderHarness(counts = listOf(1), sourceFactory = { root, _ ->
+            File(corpus, "wasteland-woff.epub").copyTo(File(root, "wasteland-links.epub"), overwrite = true)
+        }).use { h ->
+            h.js("""(() => {
+                const link = document.querySelector('a[href="#ln20"]');
+                const index = new MIUingTextIndex(document.getElementById('miuing-content'));
+                window.miuingJumpAnchor(index.offsetOf(link.firstChild, 0));
+            })()""")
+            h.await { h.saved().anchor > 1000 }
+            val source = h.saved()
+            h.js("document.querySelector('a[href=\"#ln20\"]').click()")
+            val back = h.device.wait(Until.findObject(By.desc("返回跳转前位置")), 6000)
+            assertNotNull("The real fragment backlink did not create a reader jump", back)
+            h.await { h.saved().chapter == source.chapter && h.saved().anchor in 0 until source.anchor }
+            assertEquals("true", h.js("""(() => {
+                const target = document.getElementById('ln20').getBoundingClientRect();
+                return target.right > 0 && target.left < window.miuingWidth &&
+                    target.bottom > 0 && target.top < window.miuingHeight;
+            })()"""))
+            back!!.click()
+            h.await { h.saved().chapter == source.chapter && h.saved().anchor == source.anchor }
         }
     }
 }

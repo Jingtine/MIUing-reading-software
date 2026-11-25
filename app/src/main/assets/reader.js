@@ -11,6 +11,21 @@
   const chineseTypography=new window.MIUingChineseTypography();
   const pagination=new window.MIUingPagination();
   const footnotes=new window.MIUingFootnotes(()=>config,()=>gestures.cancel());
+  document.addEventListener('click', event => {
+    if (event.defaultPrevented || !flow || typeof MIUing.openFragment !== 'function') return;
+    const link = event.target.closest && event.target.closest('a[href]');
+    if (!link || !flow.contains(link)) return;
+    const href = link.getAttribute('href').trim();
+    if (!href.startsWith('#')) return;
+
+    // Android's base URL supplies the resource directory, so a bare fragment
+    // must be resolved against this chapter rather than the WebView's history.
+    event.preventDefault();
+    let fragment;
+    try { fragment = decodeURIComponent(href.slice(1)); } catch (_) { return; }
+    const target = document.getElementById(fragment);
+    if (target && flow.contains(target)) MIUing.openFragment(fragment);
+  });
   window.miuingDismissFootnote=()=>footnotes.close();
   window.miuingShowFootnote=(html,original)=>footnotes.show(html,original);
   window.miuingFootnoteError=(message,original)=>footnotes.show(message,original,true);

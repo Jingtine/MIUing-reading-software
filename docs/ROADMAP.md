@@ -1,9 +1,9 @@
 # MIUing 后续开发计划书
 
 - 日期：2026-11-25
-- 当前产品基线：**0.7.6 / versionCode 27**
+- 当前产品基线：**0.7.7 / versionCode 28**
 - 工作区整理基线：**`e222226`**
-- 大书搜索与性能阶段已进入 0.7.6。下一阶段为文字书兼容与排版验证。 [0.7.6 实现记录](releases/progressive-search-0.7.6.md)
+- 大书搜索优化已进入 0.7.6。文字书兼容与排版验证已开始，0.7.7 修复真实 EPUB 的章内回链。 [搜索记录](releases/progressive-search-0.7.6.md) · [兼容记录](releases/epub-fragment-links-0.7.7.md)
 
 ## 一、产品方向
 

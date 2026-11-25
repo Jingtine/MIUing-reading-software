@@ -120,6 +120,7 @@ internal fun loadReaderScript(context:android.content.Context):String =
     var loaded by remember(web) { mutableStateOf(false) }
     bridge.turnPage={direction->if(loaded) host.turn(web,pageTurn,direction,theme.paper.toArgb()) {ready->web.evaluateJavascript("window.miuingAdvance($direction)") {ready()}}}
     bridge.onReady={host.ready(web)}
+    bridge.onOpenFragment = { fragment -> latestLink(chapter, fragment) }
     bridge.onSearchMatch={latestSearchMatch(it)}
     bridge.onFootnote={footnotes.open(it)}
     bridge.onFootnoteNavigate={footnotes.original(it)}

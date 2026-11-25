@@ -4,6 +4,7 @@
 
 | 版本/记录 | 内容 |
 | --- | --- |
+| [epub-fragment-links-0.7.7](epub-fragment-links-0.7.7.md) | EPUB 章内链接兼容 0.7.7 |
 | [progressive-search-0.7.6](progressive-search-0.7.6.md) | 长篇文字书搜索 0.7.6 |
 | [notes-export-0.7.5](notes-export-0.7.5.md) | 笔记整理与导出 0.7.5 |
 | [book-search-0.7.4](book-search-0.7.4.md) | 0.7.4 全书逐条文字搜索 |
