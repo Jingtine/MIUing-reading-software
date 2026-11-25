@@ -15,6 +15,19 @@ class BookSearchTest {
             assertEquals("true",r.js("(()=>{const i=new MIUingTextIndex(document.getElementById('miuing-content'));return i.find('needle',0).total===1 && i.findAll('needle',10).hits.length===1})()"))
         }
     }
+
+    @Test fun visibleOrdinalsCanChangeWithoutChangingTheSamePassageAnchor() {
+        RendererHarness("<p id='first'>needle one</p><p>needle two</p>").use { r ->
+            assertEquals("true", r.js("""(()=>{
+                const index=new MIUingTextIndex(document.getElementById('miuing-content'));
+                const before=index.findAll('needle').hits;
+                document.getElementById('first').style.display='none';
+                const after=index.findAll('needle').hits;
+                return before.length===2 && after.length===1 && after[0].index===0 &&
+                    after[0].start===before[1].start && after[0].start===index.find('needle',0).start;
+            })()"""))
+        }
+    }
     @Test fun largeExpandedUnicodeTextHasBoundedExcerptsAndExplicitLimit() {
         RendererHarness("<p>İ 😀 "+"needle ".repeat(1500)+"</p>").use {r->
             assertEquals("true",r.js("(()=>{const a=new MIUingTextIndex(document.getElementById('miuing-content')).findAll('needle',1000);return a.more && a.hits.length===1000 && a.hits[999].index===999 && a.hits.every(h=>Array.from(h.pre).length<=50 && Array.from(h.post).length<=50)})()"))

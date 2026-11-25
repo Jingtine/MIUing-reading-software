@@ -99,7 +99,7 @@ internal class ReadingTurnHost(context:Context):FrameLayout(context) {
         if(token!=null && task.token!==token) return
         completeMeasurement(task,null)
     }
-    fun releaseIdlePreview() {cancelMeasurement();cancelSearch();if(gesture==null && handoff==null) {preview?.close();preview=null}}
+    fun releaseIdlePreview() {cancelMeasurement();interruptSearch();if(gesture==null && handoff==null) {preview?.close();preview=null}}
     fun search(spec:ReadingPreviewSpec,query:String,limit:Int,done:(org.json.JSONObject?)->Unit):Boolean {
         if(busy || measurement!=null || searchTask!=null) return false
         searchTask=done
@@ -111,12 +111,18 @@ internal class ReadingTurnHost(context:Context):FrameLayout(context) {
         return true
     }
     fun cancelSearch(owner:((org.json.JSONObject?)->Unit)?=null) {if(owner!=null && searchTask!==owner) return;val callback=searchTask ?: return;searchTask=null;preview?.close();preview=null;callback(null)}
+    private fun interruptSearch() {
+        if (searchTask == null) return
+        layoutRevision++
+        cancelSearch()
+    }
     fun turn(web:WebView,mode:String,direction:Int,paper:Int,advance:(()->Unit)->Unit) {
         cancelMeasurement();overlay.turn(web,mode,direction,paper,advance)
     }
     fun begin(web:WebView,id:Int,direction:Int,position:Double,spec:ReadingPreviewSpec,paper:Int,mode:String="curl") {
         if(closed || main!==web || handoff!=null) return
         cancelMeasurement()
+        interruptSearch()
         reset()
         val g=Gesture(web,id,direction,spec);gesture=g
         postDelayed(timeout,3000)
@@ -176,7 +182,8 @@ internal class ReadingTurnHost(context:Context):FrameLayout(context) {
     private fun reset() {
         removeCallbacks(timeout);removeCallbacks(handoffTimeout)
         gesture?.targetFrame?.recycle();gesture=null
-        preview?.cancelSeek();overlay.clear()
+        if(searchTask==null) preview?.cancelSeek()
+        overlay.clear()
     }
     fun close() {if(closed) return;closed=true;cancelSearch();cancelMeasurement();handoff=null;reset();preview?.close();preview=null;main=null}
 }

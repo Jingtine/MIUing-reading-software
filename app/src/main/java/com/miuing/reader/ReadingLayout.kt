@@ -4,6 +4,9 @@ import android.os.Build
 import android.net.Uri
 import android.content.res.Configuration
 import android.webkit.WebView
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.webkit.WebViewAssetLoader
 import com.miuing.core.Publication
 import org.json.JSONArray
@@ -11,7 +14,10 @@ import org.json.JSONObject
 import java.io.File
 
 internal data class PaginationPlan(val book:String,val key:String,val columns:Int,val chapters:Int,val document:(Int)->ReadingPreviewSpec)
-internal class ReadingLayoutBinding {var owner:WebView?=null;var layout:ReadingLayout?=null}
+internal class ReadingLayoutBinding {
+    var owner: WebView? = null
+    var layout: ReadingLayout? by mutableStateOf(null)
+}
 internal fun systemTypographyIdentity(config:Configuration)=listOf(
     config.uiMode,config.fontScale,config.densityDpi,config.locales.toLanguageTags(),
     if(Build.VERSION.SDK_INT>=31) config.fontWeightAdjustment else 0,BuildConfig.PERSONAL_FONTS
@@ -32,6 +38,13 @@ internal class ReadingLayout(
     }
     private val environment="physical-pages-1|${BuildConfig.VERSION_CODE}|${Build.FINGERPRINT}|${WebView.getCurrentWebViewPackage()?.versionName}|$systemTypography"
     val key=paginationDigest(environment+geometry.toString())
+    val searchKey by lazy(LazyThreadSafetyMode.NONE) {
+        paginationDigest(environment + JSONObject(geometry.toString()).apply {
+            listOf("search", "searchIndex", "searchChapter").forEach { remove(it) }
+            put("paper", configuration.optString("paper"))
+            put("ink", configuration.optString("ink"))
+        }.toString())
+    }
     val plan=PaginationPlan(root.parentFile!!.name+"|"+publication.chapters.joinToString("|") {root.toPath().relativize(it.path).toString()},key,if(width>=900) 2 else 1,publication.chapters.size,::preview)
     private fun documentUrl(index:Int)=Uri.Builder().scheme("https").authority("appassets.androidplatform.net")
         .path("/book/"+root.toPath().relativize(publication.chapters[index].path).toString().replace('\\','/')).build().toString()

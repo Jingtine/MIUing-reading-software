@@ -21,7 +21,8 @@ data class SearchMatchInfo(val index:Int,val total:Int) {
 
 /** Search controls overlay the existing tools area, keeping the text viewport fixed. */
 @Composable internal fun SearchNavigation(
-    match:SearchMatchInfo?,ready:Boolean,theme:ReadingTheme,onMove:(Int)->Unit,onClose:()->Unit,wholeBook:Boolean=false
+    match:SearchMatchInfo?,ready:Boolean,theme:ReadingTheme,onMove:(Int)->Unit,onClose:()->Unit,
+    wholeBook:Boolean=false,scanning:Boolean=false,unavailable:Boolean=false
 ) {
     Surface(color=theme.paper,contentColor=theme.ink,shape=RoundedCornerShape(24.dp),shadowElevation=2.dp) {
         Row(verticalAlignment=Alignment.CenterVertically) {
@@ -29,7 +30,7 @@ data class SearchMatchInfo(val index:Int,val total:Int) {
                 modifier=Modifier.semantics {contentDescription="上一处匹配"}) {
                 Icon(Icons.Default.KeyboardArrowUp,null)
             }
-            Text(when {match==null->"正在查找…";match.total==0->if(wholeBook) "无匹配" else "本章无匹配";else->"${if(wholeBook) "全书" else "本章"} ${match.index+1} / ${match.total}"},fontSize=12.sp)
+            Text(when {unavailable->"原匹配不可用";match==null->"正在查找…";match.total==0->if(wholeBook) "无匹配" else "本章无匹配";else->"${if(scanning) "已找到" else if(wholeBook) "全书" else "本章"} ${match.index+1} / ${match.total}"},fontSize=12.sp)
             IconButton(onClick={onMove(match!!.index+1)},enabled=ready && match!=null && match.index+1<match.total,
                 modifier=Modifier.semantics {contentDescription="下一处匹配"}) {
                 Icon(Icons.Default.KeyboardArrowDown,null)

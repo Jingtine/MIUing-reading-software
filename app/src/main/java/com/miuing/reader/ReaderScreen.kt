@@ -52,12 +52,17 @@ import kotlin.math.roundToInt
     var search by rememberSaveable(initial.id) { mutableStateOf("") }
     var searchTarget by rememberSaveable(initial.id) { mutableStateOf("") }
     var searchOrdinal by rememberSaveable(initial.id) {mutableIntStateOf(0)}
-    var searchMatch by remember(chapter,jump,searchTarget) {mutableStateOf<SearchMatchInfo?>(null)}
+    var searchStart by rememberSaveable(initial.id) { mutableIntStateOf(-1) }
+    var searchMatch by remember(chapter,jump,searchTarget,searchOrdinal) {mutableStateOf<SearchMatchInfo?>(null)}
     val locationCapture=remember(initial.id) {ReadingLocationCapture()}
     var results by remember { mutableStateOf<List<TextSearchHit>>(emptyList()) }
+    var resultsQuery by remember { mutableStateOf("") }
+    var resultsLayoutKey by remember { mutableStateOf<String?>(null) }
     var searchEngine by remember {mutableStateOf<BookSearchEngine?>(null)}
     var activeHits by remember {mutableStateOf<List<TextSearchHit>>(emptyList())}
+    var activeLayoutKey by rememberSaveable(initial.id) { mutableStateOf<String?>(null) }
     var searchGeneration by remember {mutableIntStateOf(0)}
+    var searchEditRevision by remember { mutableIntStateOf(0) }
     var searchLimited by remember {mutableStateOf(false)}
     val searchLifecycle by androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsState()
     var selection by remember { mutableStateOf("") }
@@ -119,27 +124,57 @@ import kotlin.math.roundToInt
         try { publication=withContext(Dispatchers.IO) { store.open(initial) } }
         catch(e:Exception) { error=e.localizedMessage ?: "无法打开图书" }
     }
-    LaunchedEffect(search,searchTarget,publication,pdfService,panel,searchEngine,searchLifecycle) {
-        val generation=++searchGeneration
-        searching=false
-        if(!searchLifecycle.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) return@LaunchedEffect
-        val recovering=panel!=ReaderPanel.Search && searchTarget.isNotBlank() && activeHits.isEmpty()
-        if(panel!=ReaderPanel.Search && !recovering) return@LaunchedEffect
-        val query=if(recovering) searchTarget else search
-        results=emptyList();pdfHits=emptyList();pdfHit=null;searchProblem=null;searchLimited=false
-        if(query.isNotBlank() && publication!=null) {
-            searching=true
-            try {
-                kotlinx.coroutines.delay(300)
-                if(book.format=="PDF") pdfHits=pdfService?.search(query).orEmpty()
-                else if(searchEngine!=null) {
-                    val found=searchEngine!!.search(query,publication!!.chapters.size) {if(generation==searchGeneration) results=it}
-                    if(generation==searchGeneration) {results=found.hits;searchLimited=found.limited
-                        if(recovering) activeHits=found.hits}
-                }
-            } catch(e:kotlinx.coroutines.TimeoutCancellationException) {if(generation==searchGeneration) {results=emptyList();searchProblem="章节搜索超时，请缩小关键词后重试"}}
-            catch(e:CancellationException) {throw e} catch(e:Exception) {if(generation==searchGeneration) {results=emptyList();searchProblem=e.localizedMessage ?: "搜索失败"}}
-            finally {if(generation==searchGeneration) searching=false}
+    // Opening a result keeps the same request key, so the remaining chapters can finish scanning.
+    val requestedSearch = if (panel == ReaderPanel.Search) search else searchTarget
+    val currentSearchLayout = if (requestedSearch.isNotBlank() || searchTarget.isNotBlank()) searchEngine?.layoutKey?.value else null
+    val selectedLayoutChanged = activeLayoutKey != null && currentSearchLayout != null && activeLayoutKey != currentSearchLayout
+    val searchForeground = searchLifecycle.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+    LaunchedEffect(requestedSearch,searchEditRevision,publication,pdfService,searchEngine,currentSearchLayout,searchForeground) {
+        val generation = ++searchGeneration
+        searching = false
+        if (!searchForeground) return@LaunchedEffect
+        val query = requestedSearch
+        results = emptyList()
+        resultsQuery = query
+        resultsLayoutKey = currentSearchLayout
+        if (panel != ReaderPanel.Search && query.isBlank()) return@LaunchedEffect
+        val isPdf = book.format == "PDF"
+        pdfHits = emptyList(); pdfHit = null; searchProblem = null; searchLimited = false
+        val engine = searchEngine
+        val chapterCount = publication?.chapters?.size ?: 0
+        if (query.isBlank() || (!isPdf && (currentSearchLayout == null || engine == null || chapterCount == 0))) return@LaunchedEffect
+
+        fun publish(hits: List<TextSearchHit>) {
+            if (generation != searchGeneration || engine?.layoutKey?.value != currentSearchLayout) return
+            results = hits
+            if (searchTarget != query) return
+            if (activeLayoutKey != null && activeLayoutKey != currentSearchLayout) {
+                // Visibility may change after reflow. Reattach only to the same underlying text.
+                val sameHit = hits.firstOrNull { it.chapter == chapter && it.start == searchStart } ?: return
+                searchOrdinal = sameHit.ordinal
+            }
+            activeHits = hits
+            activeLayoutKey = currentSearchLayout
+        }
+        searching = true
+        try {
+            kotlinx.coroutines.delay(300)
+            if (isPdf) {
+                val found = pdfService?.search(query).orEmpty()
+                if (generation == searchGeneration) pdfHits = found
+            } else {
+                val found = engine!!.search(query, chapterCount, ::publish)
+                publish(found.hits)
+                if (generation == searchGeneration) searchLimited = found.limited
+            }
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            if (generation == searchGeneration) searchProblem = "章节搜索超时，请重试"
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (generation == searchGeneration) searchProblem = e.localizedMessage ?: "搜索失败"
+        } finally {
+            if (generation == searchGeneration) searching = false
         }
     }
     LaunchedEffect(themeIndex,fontSize,scrolling) { preferences.edit().putInt("theme",themeIndex).putFloat("size",fontSize).putBoolean("scroll",scrolling).apply() }
@@ -154,7 +189,7 @@ import kotlin.math.roundToInt
     val savePosition:(Int,Float)->Unit={c,p ->
         fragment="";saveLocated(c,p,-1);selection=""
     }
-    fun navigate(c:Int,p:Float=0f,a:Int=-1,target:String="",find:String="",match:Int=0,rememberSource:Boolean=true) {
+    fun navigate(c:Int,p:Float=0f,a:Int=-1,target:String="",find:String="",match:Int=0,rememberSource:Boolean=true,matchStart:Int=-1) {
         if(book.format!="PDF") {
             if(locationAvailable==null) return
             if(locationAvailable==true && rememberSource) {
@@ -163,6 +198,8 @@ import kotlin.math.roundToInt
             }
         }
         saveLocated(c,p,a);fragment=target;searchTarget=find;searchOrdinal=match.coerceAtLeast(0);selection="";selectedRange=SelectedText()
+        searchStart=matchStart
+        if(find.isBlank()) activeLayoutKey=null
         locationAvailable=null;jump++
     }
     fun returnToSource() {
@@ -172,6 +209,8 @@ import kotlin.math.roundToInt
         saveLocated(source.chapter,source.position,source.anchor)
         searchTarget=""
         searchOrdinal=0
+        searchStart=-1
+        activeLayoutKey=null
         selection="";selectedRange=SelectedText();locationAvailable=null;jump++
     }
     fun toggleBookmark() {
@@ -190,11 +229,16 @@ import kotlin.math.roundToInt
     LaunchedEffect(pagination?.key) {if(menuOpen && menuLayoutKey!=null && pagination?.key!=menuLayoutKey) menuOpen=false}
     val selectionActions: @Composable () -> Unit = {
                 if(selection.isBlank() && searchTarget.isNotBlank()) {
-                    val at=activeHits.indexOfFirst {it.chapter==chapter && it.ordinal==searchOrdinal}
-                    val global=if(at>=0 && searchMatch!=null) SearchMatchInfo(at,activeHits.size) else null
+                    val activeResultsCurrent = activeLayoutKey == searchEngine?.layoutKey?.value
+                    val at=if(activeResultsCurrent) activeHits.indexOfFirst {it.chapter==chapter && it.ordinal==searchOrdinal} else -1
+                    val localMatch = searchMatch
+                    val matchingOrdinal = localMatch != null && localMatch.total > 0 && localMatch.index == searchOrdinal
+                    val global=if(at>=0 && matchingOrdinal) SearchMatchInfo(at,activeHits.size) else null
                     SearchNavigation(global,locationAvailable==true,theme,
-                        onMove={index->activeHits.getOrNull(index)?.let {navigate(it.chapter,find=searchTarget,match=it.ordinal,rememberSource=false)}},
-                        onClose={if(history.isNotEmpty()) returnToSource() else locationCapture.capture {p,a->navigate(chapter,p,a,rememberSource=false)}},wholeBook=true)
+                        onMove={index->activeHits.getOrNull(index)?.let {navigate(it.chapter,find=searchTarget,match=it.ordinal,rememberSource=false,matchStart=it.start)}},
+                        onClose={if(history.isNotEmpty()) returnToSource() else locationCapture.capture {p,a->navigate(chapter,p,a,rememberSource=false)}},
+                        wholeBook=true, scanning=searching && resultsQuery==searchTarget,
+                        unavailable=(!searching && selectedLayoutChanged) || (!selectedLayoutChanged && localMatch!=null && (!matchingOrdinal || (!searching && activeResultsCurrent && at<0))))
                 }
                 if(selection.isNotBlank()) Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.Center) {
                     TextButton(onClick={val b=store.current(book.id);store.update(b.copy(notes=b.notes+Note(chapter,selection,start=selectedRange.start,end=selectedRange.end)));selection=""}) { Text("高亮标记") }
@@ -232,7 +276,7 @@ import kotlin.math.roundToInt
                     else if(p.chapters.isNotEmpty()) {
                         val safeChapter=chapter.coerceIn(0,p.chapters.size-1)
                         val readerJump=jump
-                        TextReader(p,java.io.File(java.io.File(book.source).parentFile,"content"),safeChapter,position,jump,theme,fontSize,scrolling,options.font!="sans",searchTarget,book.notes,
+                        TextReader(p,java.io.File(java.io.File(book.source).parentFile,"content"),safeChapter,position,jump,theme,fontSize,scrolling,options.font!="sans",if(selectedLayoutChanged) "" else searchTarget,book.notes,
                             onPosition={savePosition(safeChapter,it)},onTap={controls=!controls},onSelection={selection=it},
                             onChapter={next -> if(next in p.chapters.indices) { searchTarget="";searchOrdinal=0;savePosition(next,if(next<safeChapter) 1f else 0f);jump++ } },
                             anchor=anchor,fragment=fragment,lineHeight=effectiveOptions.lineHeight,margin=effectiveOptions.margin,letterSpacing=effectiveOptions.letterSpacing,pageTurn=pageTurn,
@@ -325,9 +369,17 @@ import kotlin.math.roundToInt
                             else -> Unit
                         }
                     }
-                    ReaderPanel.Search -> ReaderSearchPanel(search, results, pdfHits, searching, searchProblem ?: if (book.format == "PDF") pdfProblem else if(searchLimited) "已达1000条结果上限" else null,
-                        onQuery = { val next=it.take(256);if(next!=search) {searchGeneration++;results=emptyList();searching=true;search=next} },
-                        onResult = { hit -> keyboard?.hide(); activeHits=results.toList(); navigate(hit.chapter,find=search,match=hit.ordinal,rememberSource=searchTarget.isBlank()); panel = null },
+                    ReaderPanel.Search -> ReaderSearchPanel(search, if(resultsQuery==search && resultsLayoutKey==currentSearchLayout) results else emptyList(), pdfHits, searching, searchProblem ?: if (book.format == "PDF") pdfProblem else if(searchLimited) "已达1000条结果上限" else null,
+                        textNavigationReady = locationAvailable!=null,
+                        onQuery = { val next=it.take(256);if(next!=search) {
+                            searchGeneration++; searchEditRevision++; results=emptyList(); pdfHits=emptyList(); searching=next.isNotBlank(); search=next
+                        } },
+                        onResult = { hit ->
+                            if(locationAvailable!=null && resultsQuery==search && resultsLayoutKey==searchEngine?.layoutKey?.value && hit in results) {
+                                keyboard?.hide(); activeHits=results; activeLayoutKey=resultsLayoutKey
+                                navigate(hit.chapter,find=search,match=hit.ordinal,rememberSource=searchTarget.isBlank(),matchStart=hit.start); panel=null
+                            }
+                        },
                         onPdfHit = { hit -> keyboard?.hide(); savePosition(hit.page, 0f); pdfHit = hit; jump++; panel = null })
                     ReaderPanel.GoToPage -> ReaderPageJump(pdfService?.pageCount) { page -> keyboard?.hide(); savePosition(page, 0f); jump++; panel = null }
                     ReaderPanel.AddNote,ReaderPanel.EditNote -> {

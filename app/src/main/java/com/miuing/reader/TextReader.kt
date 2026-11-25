@@ -91,10 +91,9 @@ internal fun loadReaderScript(context:android.content.Context):String =
         {file,fragment->val index=publication.chapters.indexOfFirst {it.path.toFile().canonicalFile==file};if(index>=0) latestLink(index,fragment)})}
     DisposableEffect(footnotes) {onDispose {footnotes.close()}}
     LaunchedEffect(web,dismissFootnote) {if(dismissFootnote>0) web.evaluateJavascript("if(window.miuingDismissFootnote) window.miuingDismissFootnote()",null)}
-    val initialSearch=remember(web) { search }
     val configuration=JSONObject().apply {
         put("position",initial.first);put("anchor",initial.second);put("fragment",initial.third)
-        put("search",initialSearch)
+        put("search",search)
         put("searchIndex",searchIndex)
         put("paper","#%06x".format(theme.paper.toArgb() and 0xffffff))
         put("ink","#%06x".format(theme.ink.toArgb() and 0xffffff))

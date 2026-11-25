@@ -142,10 +142,14 @@
         return plainCursor;
       };
       const domOffset = (offset, isEnd) => {
-        for (let i = 0; i < chunks.length; i++) {
-          const chunk = chunks[i], limit = chunk.at + chunk.text.length;
-          if (offset < limit || (isEnd && offset === limit)) return chunk.offset + Math.max(0, offset - chunk.at);
+        let low = 0, high = chunks.length;
+        while (low < high) {
+          const middle = (low + high) >>> 1;
+          const chunk = chunks[middle], limit = chunk.at + chunk.text.length;
+          if (offset < limit || (isEnd && offset === limit)) high = middle;
+          else low = middle + 1;
         }
+        if (low < chunks.length) return chunks[low].offset + Math.max(0, offset - chunks[low].at);
         const last = chunks[chunks.length - 1]; return last.offset + last.text.length;
       };
       if(collectLimit) {
@@ -153,7 +157,7 @@
         const clean=str=>str.replace(/\s+/g,' ');
         return {hits:collected.map((value,index)=>{
           const a=originalOffset(value.index,false),b=originalOffset(value.index+value[0].length,true);
-          return {index,pre:clean(Array.from(text.slice(Math.max(0,a-110),a)).slice(-50).join('')),
+          return {index,start:domOffset(a,false),pre:clean(Array.from(text.slice(Math.max(0,a-110),a)).slice(-50).join('')),
             match:clean(text.slice(a,b)).slice(0,256),post:clean(Array.from(text.slice(b,b+110)).slice(0,50).join(''))};
         }),more:total>collectLimit};
       }

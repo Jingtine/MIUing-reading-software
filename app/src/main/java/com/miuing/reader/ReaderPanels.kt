@@ -58,18 +58,26 @@ fun ReaderSearchPanel(
     pdfHits: List<PdfHit>,
     searching: Boolean,
     problem: String?,
+    textNavigationReady: Boolean,
     onQuery: (String) -> Unit,
     onResult: (TextSearchHit) -> Unit,
     onPdfHit: (PdfHit) -> Unit
 ) {
     OutlinedTextField(query, onQuery, label = { Text("在图书中搜索") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-    if(query.isNotBlank() && pdfHits.isEmpty()) Text(if(searching) "正在搜索…" else "找到 ${results.size} 处匹配",style=MaterialTheme.typography.labelSmall,modifier=Modifier.padding(vertical=8.dp))
+    if (query.isNotBlank() && pdfHits.isEmpty()) {
+        val status = when {
+            searching && results.isEmpty() -> "正在搜索…"
+            searching -> "已找到 ${results.size} 处，仍在搜索…"
+            else -> "找到 ${results.size} 处匹配"
+        }
+        Text(status, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(vertical = 8.dp))
+    }
     if(problem!=null) Text(problem,Modifier.padding(vertical=8.dp))
     LazyColumn(Modifier.heightIn(max = 360.dp)) {
         items(pdfHits) { hit ->
             TextButton(onClick = { onPdfHit(hit) }, modifier = Modifier.semantics { contentDescription = "PDF 搜索结果 第 ${hit.page + 1} 页" }) { Text("第 ${hit.page + 1} 页 · ${hit.snippet}") }
         }
-        items(results) { result -> TextButton(onClick = { onResult(result) }, enabled = !searching, modifier = Modifier.semantics { contentDescription = "文字搜索结果 第 ${result.chapter + 1} 章 第 ${result.ordinal + 1} 处" }) {
+        items(results) { result -> TextButton(onClick = { onResult(result) }, enabled = textNavigationReady, modifier = Modifier.semantics { contentDescription = "文字搜索结果 第 ${result.chapter + 1} 章 第 ${result.ordinal + 1} 处" }) {
             Column {Text("第 ${result.chapter+1} 章 · 第 ${result.ordinal+1} 处",style=MaterialTheme.typography.labelSmall)
                 Text(androidx.compose.ui.text.buildAnnotatedString {
                     append(result.pre)
