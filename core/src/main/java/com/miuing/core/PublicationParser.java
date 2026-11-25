@@ -10,6 +10,8 @@ import javax.xml.parsers.*;
 import org.w3c.dom.*;
 
 public final class PublicationParser {
+    public static final int TXT_LAYOUT_LEGACY = 1;
+    public static final int TXT_LAYOUT_CURRENT = 2;
     public static String readMarkup(Path path) throws IOException {
         byte[] bytes=Files.readAllBytes(path);
         Charset charset=StandardCharsets.UTF_8;
@@ -25,10 +27,18 @@ public final class PublicationParser {
     }
     private static final long ENTRY_LIMIT=16L*1024*1024, TOTAL_LIMIT=256L*1024*1024;
     public static Publication open(Path source, Path output) throws IOException {
+        return open(source, output, TXT_LAYOUT_CURRENT);
+    }
+    /** A saved TXT locator must be reopened with the layout that created it. */
+    public static Publication open(Path source, Path output, int txtLayoutVersion) throws IOException {
         Files.createDirectories(output);
         String name=source.getFileName().toString();
         String title=name.replaceFirst("(?i)\\.[^.]+$", "");
-        if(name.toLowerCase(Locale.ROOT).endsWith(".txt")) return text(source,output,title);
+        if(name.toLowerCase(Locale.ROOT).endsWith(".txt")) {
+            if(txtLayoutVersion != TXT_LAYOUT_LEGACY && txtLayoutVersion != TXT_LAYOUT_CURRENT)
+                throw new IOException("不支持此 TXT 分章版本");
+            return text(source,output,title,txtLayoutVersion);
+        }
         if(!name.toLowerCase(Locale.ROOT).endsWith(".epub")) throw new IOException("不支持的文件格式");
         Path root=output.toAbsolutePath().normalize();
         long total=0; int count=0;
@@ -133,13 +143,14 @@ public final class PublicationParser {
         if(nodes.getLength()==0) return fallback;
         String s=nodes.item(0).getTextContent().trim(); return s.isEmpty()?fallback:s;
     }
-    private static Publication text(Path source,Path output,String title) throws IOException {
+    private static Publication text(Path source,Path output,String title,int layoutVersion) throws IOException {
         if(Files.size(source)>32L*1024*1024) throw new IOException("TXT 暂支持 32 MB 以内的文件");
         byte[] bytes=Files.readAllBytes(source); String text;
         if(bytes.length>=2 && (bytes[0]==(byte)0xff && bytes[1]==(byte)0xfe || bytes[0]==(byte)0xfe && bytes[1]==(byte)0xff)) text=new String(bytes,StandardCharsets.UTF_16);
         else try { text=StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)).toString(); }
         catch(CharacterCodingException e) { text=new String(bytes,Charset.forName("GB18030")); }
-        text=text.replace("\ufeff","").replace("\r\n","\n").replace('\r','\n');
+        text=text.replace("\ufeff","").replace("\r\n","\n");
+        if(layoutVersion == TXT_LAYOUT_CURRENT) text=text.replace('\r','\n');
         List<Publication.Chapter> chapters=new ArrayList<>();
         StringBuilder chunk=new StringBuilder(); String heading=title;
         for(String line:text.split("\n",-1)) {

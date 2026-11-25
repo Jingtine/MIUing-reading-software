@@ -128,6 +128,28 @@ public final class PublicationParserTest {
                 check(Files.readString(book.chapters.get(0).path).contains("第一章 开始\n正文\n\n</div>"),
                         "Mixed endings lost a blank line");
             });
+            test("Legacy TXT layout preserves mixed endings byte for byte on reopen", () -> {
+                Path source=root.resolve("legacy-mixed.txt"), output=root.resolve("legacy-mixed");
+                String original="第一章 开始\r正文\r\n\r第二章 结束\n尾声";
+                Files.writeString(source,original);
+                String expected="<!doctype html><html><head><meta charset='UTF-8'></head><body>"
+                        +"<div style='white-space:pre-wrap'>第一章 开始\r正文\n</div></body></html>";
+                for(int i=0;i<2;i++) {
+                    Publication book=PublicationParser.open(source,output,PublicationParser.TXT_LAYOUT_LEGACY);
+                    check(book.chapters.size()==2,"Legacy chapter boundary changed");
+                    check(Files.readString(book.chapters.get(0).path).equals(expected),"Legacy content changed");
+                    check(Files.readString(book.chapters.get(1).path).contains("\r第二章 结束\n尾声\n"),"Legacy offset changed");
+                    check(Files.readString(source).equals(original),"Source changed");
+                }
+            });
+            test("Unknown TXT layout fails without rewriting existing chapters", () -> {
+                Path source=root.resolve("future-layout.txt"), output=root.resolve("future-layout");
+                Files.writeString(source,"第一章\r正文\r第二章\r结尾");
+                Publication book=PublicationParser.open(source,output,PublicationParser.TXT_LAYOUT_LEGACY);
+                byte[] original=Files.readAllBytes(book.chapters.get(0).path);
+                rejects(()->PublicationParser.open(source,output,99));
+                check(Arrays.equals(original,Files.readAllBytes(book.chapters.get(0).path)),"Unknown layout overwrote content");
+            });
             test("UTF-16 EPUB markup is decoded according to its BOM", () -> {
                 Path p=root.resolve("utf16.xhtml");
                 Files.write(p,"<?xml version='1.0' encoding='UTF-16'?><html><body>正文中文</body></html>".getBytes(StandardCharsets.UTF_16));

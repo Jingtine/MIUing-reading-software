@@ -27,7 +27,8 @@ data class Book(
     val opened: Long = 0, val chapter: Int = 0, val position: Float = 0f,
     val finished: Boolean = false, val wantToRead: Boolean = false,
     val collections: List<String> = emptyList(), val marks: List<Mark> = emptyList(), val notes: List<Note> = emptyList(),
-    val anchor:Int = -1, val pdfInk:List<PdfInk> = emptyList()
+    val anchor:Int = -1, val pdfInk:List<PdfInk> = emptyList(),
+    val txtLayoutVersion: Int = PublicationParser.TXT_LAYOUT_LEGACY
 )
 
 class LibraryStore(private val context: Context, private val root: File = File(context.filesDir, "library")) {
@@ -123,7 +124,8 @@ class LibraryStore(private val context: Context, private val root: File = File(c
                         val converted=format in BookFormatImporter.formats
                         val reading=if(converted) File(dir,"normalized.epub").also {BookFormatImporter.convert(context,source,it,format)} else source
                         val p = PublicationParser.open(reading.toPath(), File(dir, "content").toPath())
-                        Book(id, if(format == "txt" || p.title=="source" || p.title=="未命名图书") name.substringBeforeLast('.') else p.title, p.author, if(converted) format.uppercase() else p.format, source.path, p.cover?.toString() ?: "")
+                        Book(id, if(format == "txt" || p.title=="source" || p.title=="未命名图书") name.substringBeforeLast('.') else p.title, p.author, if(converted) format.uppercase() else p.format, source.path, p.cover?.toString() ?: "",
+                            txtLayoutVersion=if(format == "txt") PublicationParser.TXT_LAYOUT_CURRENT else PublicationParser.TXT_LAYOUT_LEGACY)
                     }
                 }
             } finally { staging.delete() }
@@ -138,7 +140,7 @@ class LibraryStore(private val context: Context, private val root: File = File(c
         val source=if(book.format.lowercase() in BookFormatImporter.formats) normalized(book).also {
             check(it.isFile) {"阅读副本缺失，请重新导入同一本书以修复"}
         } else File(book.source)
-        PublicationParser.open(source.toPath(), File(File(book.source).parentFile, "content").toPath())
+        PublicationParser.open(source.toPath(), File(File(book.source).parentFile, "content").toPath(), book.txtLayoutVersion)
     }
     private fun normalized(book:Book)=File(File(book.source).parentFile,"normalized.epub")
     fun current(id: String) = books.first { it.id == id }
