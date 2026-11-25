@@ -1,12 +1,12 @@
 # MIUing 文档导航
 
-当前软件版本：**0.7.7**。主适配 Android 16，兼容下限 Android 8；以本地文字阅读为主。
+当前软件版本：**0.7.8**。主适配 Android 16，兼容下限 Android 8；以本地文字阅读为主。
 
 | 内容 | 入口 |
 | --- | --- |
 | 当前功能和原版对齐边界 | [Apple Books 对照清单](reference/parity.md) |
 | 后续方向、阶段顺序与验收标准 | [MIUing 后续开发计划书](ROADMAP.md) |
-| 最近一版实现与验证 | [0.7.7 EPUB 章内链接兼容](releases/epub-fragment-links-0.7.7.md) |
+| 最近一版实现与验证 | [0.7.8 EPUB 原书样式与语言](releases/epub-publisher-styles-0.7.8.md) |
 | 历史版本记录 | [发布记录索引](releases/README.md) |
 | 原版与开源实现核对 | [参考资料说明](reference/README.md) |
 | 已执行的设计和实现计划 | [工程记录说明](superpowers/README.md) |

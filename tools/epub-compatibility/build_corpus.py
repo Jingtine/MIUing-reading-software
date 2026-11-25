@@ -12,7 +12,8 @@ import zipfile
 
 REVISION = "7651e2002b631e6577fadf7e9e0692fa6efb8746"
 SAMPLES = ("wasteland-otf", "wasteland-otf-obf", "wasteland-woff", "wasteland-woff-obf",
-           "moby-dick", "internallinks", "childrens-literature", "epub30-spec")
+           "moby-dick", "internallinks", "childrens-literature", "epub30-spec",
+           "childrens-media-query")
 
 
 def build(checkout, output):

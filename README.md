@@ -2,12 +2,13 @@
 
 Android 手机与平板离线阅读器，按 Apple Books 的书库组织与阅读体验开发。使用用户提供的猫咪 M 图标。
 
-当前为 **0.7.7 开发版**，主适配 Android 16（编译/目标 API 36），兼容下限 Android 8（API 26）。以可重排文字阅读为开发重点，以流畅、美观、轻量和接近 Apple Books 的阅读体验为目标。功能与视觉对齐进度见 [对照清单](docs/reference/parity.md)。
+当前为 **0.7.8 开发版**，主适配 Android 16（编译/目标 API 36），兼容下限 Android 8（API 26）。以可重排文字阅读为开发重点，以流畅、美观、轻量和接近 Apple Books 的阅读体验为目标。功能与视觉对齐进度见 [对照清单](docs/reference/parity.md)。
 
 [后续开发计划](docs/ROADMAP.md) · [文档导航](docs/README.md) · [工作区整理说明](docs/maintenance/workspace-2026-11-25.md)
 
 ## 当前可用
 
+- EPUB 阅读页恢复出版者声明的语言与章节语义，修复真实样书的插图背景和横屏布局样式。 [0.7.8 样书验证](docs/releases/epub-publisher-styles-0.7.8.md)
 - EPUB 正文的章内链接支持跳到目标段落，并通过阅读历史返回原位置。 [0.7.7 样书验证](docs/releases/epub-fragment-links-0.7.7.md)
 - 文字全书搜索分批显示匹配，可在扫描期间打开结果并继续跨章导航。最近一次完成的同词搜索在同一书籍和排版下可复用，关闭后返回搜索前的原文。 [0.7.6 搜索记录](docs/releases/progressive-search-0.7.6.md)
 

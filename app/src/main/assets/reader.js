@@ -11,6 +11,24 @@
   const chineseTypography=new window.MIUingChineseTypography();
   const pagination=new window.MIUingPagination();
   const footnotes=new window.MIUingFootnotes(()=>config,()=>gestures.cancel());
+  function restoreBookSemantics() {
+    const htmlNamespace = 'http://www.w3.org/1999/xhtml';
+    const epubNamespace = 'http://www.idpf.org/2007/ops';
+    for (const element of document.querySelectorAll('[xml\\:lang], [epub\\:type]')) {
+      // The HTML parser stores XHTML-prefixed attributes as literal names.
+      const language = element.getAttribute('xml:lang');
+      if (language !== null && element.namespaceURI === htmlNamespace && !element.hasAttribute('lang')) {
+        element.setAttribute('lang', language);
+      }
+      const type = element.getAttribute('epub:type');
+      if (type === null || element.hasAttributeNS(epubNamespace, 'type')) continue;
+      const declaration = element.closest('[xmlns\\:epub]');
+      if (declaration && declaration.getAttribute('xmlns:epub') === epubNamespace) {
+        // Let publisher @namespace selectors match while keeping the literal attribute.
+        element.setAttributeNS(epubNamespace, 'epub:type', type);
+      }
+    }
+  }
   document.addEventListener('click', event => {
     if (event.defaultPrevented || !flow || typeof MIUing.openFragment !== 'function') return;
     const link = event.target.closest && event.target.closest('a[href]');
@@ -143,6 +161,7 @@
     resourcesSettled=false;
     pagination.reset();
     if (!flow) {
+      restoreBookSemantics();
       flow = document.createElement('main'); flow.id = 'miuing-content';
       while (document.body.firstChild) flow.appendChild(document.body.firstChild);
       textIndex = new window.MIUingTextIndex(flow);

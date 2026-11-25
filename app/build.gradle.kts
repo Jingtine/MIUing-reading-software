@@ -17,8 +17,8 @@ android {
         applicationId = "com.miuing.reader"
         minSdk = 26
         targetSdk = 36
-        versionCode = 28
-        versionName = "0.7.7"
+        versionCode = 29
+        versionName = "0.7.8"
         buildConfigField("boolean", "PERSONAL_FONTS", personalFonts.toString())
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -41,7 +41,7 @@ class EpubCorpusTest {
         try {
             val store=LibraryStore(instrument.targetContext,root)
             val samples=manifest.getJSONArray("books")
-            assertEquals(8,samples.length())
+            assertEquals(9,samples.length())
             repeat(samples.length()) {i->
                 val sample=samples.getJSONObject(i);val file=File(corpus,sample.getString("file"))
                 assertEquals(sample.getString("sha256"),hash(file))
@@ -56,7 +56,7 @@ class EpubCorpusTest {
                 assertEquals(sample.getString("sha256"),hash(File(book.source)))
                 Log.i("EpubCorpus","${sample.getString("name")}: chapters=${publication.chapters.size},toc=${publication.navigation.size},importAndReopenMs=${android.os.SystemClock.elapsedRealtime()-started}")
             }
-            assertEquals(8,store.books.size)
+            assertEquals(9,store.books.size)
         } finally {root.deleteRecursively()}
     }
     @Test fun sixDecodedFontFilesEqualIndependentPublishedPlainCounterparts()=runBlocking {
@@ -127,6 +127,48 @@ class EpubCorpusTest {
             })()"""))
             back!!.click()
             h.await { h.saved().chapter == source.chapter && h.saved().anchor == source.anchor }
+        }
+    }
+
+    @Test fun xmlLanguageInThePublishedXhtmlAppliesToReadingText() {
+        val (corpus, _) = corpus()
+        BookReaderHarness(counts = listOf(1), requireTextAnchor = false, sourceFactory = { root, _ ->
+            File(corpus, "internallinks.epub").copyTo(File(root, "language-sample.epub"), overwrite = true)
+        }).use { h ->
+            val publication = LibraryStore(instrument.targetContext).open(h.book)
+            val entry = publication.navigation.first {
+                it.fragment.isEmpty() && publication.chapters.getOrNull(it.chapter)?.path?.fileName?.toString() == "0001.xhtml"
+            }
+            h.device.readerAction("目录与书签").click()
+            h.device.wait(Until.findObject(By.text(entry.title)), 6000)!!.click()
+            h.await { h.saved().chapter == entry.chapter && h.saved().anchor >= 0 }
+            assertEquals("The Japanese chapter must have a recognized HTML language", "true",
+                h.js("document.documentElement.getAttribute('xml:lang')==='ja' && document.body.matches(':lang(ja)')"))
+        }
+    }
+
+    @Test fun illustratedSampleRetainsPublisherBackgroundsAndResponsiveStyles() {
+        val (corpus, _) = corpus()
+        BookReaderHarness(counts = listOf(1), sourceFactory = { root, _ ->
+            File(corpus, "childrens-media-query.epub").copyTo(File(root, "media-query-sample.epub"), overwrite = true)
+        }).use { h ->
+            if (InstrumentationRegistry.getArguments().getString("expectLandscapeSample") == "true") {
+                assertEquals("The sample must open in a wide viewport", "true",
+                    h.js("window.miuingConfig.width > window.miuingConfig.height"))
+            }
+            assertEquals("The EPUB namespaced selector must apply both illustrations", "true", h.js("""(() => {
+                const chapter = document.getElementById('miuing-content').querySelector('div');
+                const styles = getComputedStyle(chapter);
+                const landscape = window.miuingConfig.width > window.miuingConfig.height;
+                return styles.backgroundImage.includes('childrens-book-swans.jpg') &&
+                    styles.backgroundImage.includes('childrens-book-flowers.jpg') &&
+                    (!landscape || (matchMedia('(orientation: landscape)').matches && styles.columnCount === '2'));
+            })()"""))
+            h.await { h.js("""(() => {
+                const resources = performance.getEntriesByType('resource');
+                return ['swans', 'flowers'].every(name =>
+                    resources.some(entry => entry.name.endsWith('childrens-book-' + name + '.jpg')));
+            })()""") == "true" }
         }
     }
 }

@@ -2,7 +2,7 @@
 
 Source: [W3C/IDPF EPUB 3 Samples](https://github.com/IDPF/epub3-samples), pinned to `7651e2002b631e6577fadf7e9e0692fa6efb8746`.
 
-Use a local clone at that commit and sparse-checkout the eight directories listed in `build_corpus.py`, then:
+Use a local clone at that commit and sparse-checkout the nine directories listed in `build_corpus.py`, then:
 
 ```powershell
 python tools/epub-compatibility/build_corpus.py --checkout .tools/epub3-samples --output .tools/epub-corpus

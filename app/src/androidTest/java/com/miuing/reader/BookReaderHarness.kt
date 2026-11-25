@@ -18,7 +18,8 @@ import java.util.UUID
 
 /** Small real publication with an exact number of physical columns per chapter. */
 internal class BookReaderHarness(counts:List<Int> = listOf(3,2,4),holdCounting:Boolean=false,
-    transform:(Int,String)->String={_,html->html},extras:Map<String,String> = emptyMap(),sourceFactory:((File,String)->File)?=null):AutoCloseable {
+    transform:(Int,String)->String={_,html->html},extras:Map<String,String> = emptyMap(),
+    private val requireTextAnchor:Boolean=true,sourceFactory:((File,String)->File)?=null):AutoCloseable {
     val instrument=InstrumentationRegistry.getInstrumentation()
     val device=UiDevice.getInstance(instrument)
     private val context=instrument.targetContext
@@ -60,8 +61,9 @@ internal class BookReaderHarness(counts:List<Int> = listOf(3,2,4),holdCounting:B
     private fun open() {
         device.wait(Until.findObject(By.text(book.title)),10000)!!.click()
         scenario.onActivity {root=it.window.decorView}
-        await {runCatching {js("!!window.miuingConfig && window.miuingAnchor()>=0")=="true"}.getOrDefault(false)}
-        await {saved().anchor>=0}
+        val ready = if(requireTextAnchor) "window.miuingAnchor()>=0" else "window.miuingPageMetrics()!==null"
+        await {runCatching {js("!!window.miuingConfig && $ready")=="true"}.getOrDefault(false)}
+        if(requireTextAnchor) await {saved().anchor>=0}
     }
     fun reopen() {scenario.close();scenario=ActivityScenario.launch(MainActivity::class.java);open()}
     fun saved():Book {lateinit var result:Book;instrument.runOnMainSync {result=LibraryStore(context).books.first {it.id==book.id}};return result}
