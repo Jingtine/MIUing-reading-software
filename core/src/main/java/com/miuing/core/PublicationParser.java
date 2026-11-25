@@ -139,7 +139,7 @@ public final class PublicationParser {
         if(bytes.length>=2 && (bytes[0]==(byte)0xff && bytes[1]==(byte)0xfe || bytes[0]==(byte)0xfe && bytes[1]==(byte)0xff)) text=new String(bytes,StandardCharsets.UTF_16);
         else try { text=StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)).toString(); }
         catch(CharacterCodingException e) { text=new String(bytes,Charset.forName("GB18030")); }
-        text=text.replace("\ufeff","").replace("\r\n","\n");
+        text=text.replace("\ufeff","").replace("\r\n","\n").replace('\r','\n');
         List<Publication.Chapter> chapters=new ArrayList<>();
         StringBuilder chunk=new StringBuilder(); String heading=title;
         for(String line:text.split("\n",-1)) {

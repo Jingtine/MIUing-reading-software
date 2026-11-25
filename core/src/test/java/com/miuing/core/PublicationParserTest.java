@@ -96,6 +96,38 @@ public final class PublicationParserTest {
                 Publication b=PublicationParser.open(p,root.resolve("legacy"));
                 check(Files.readString(b.chapters.get(0).path).contains("中文阅读内容"),"Legacy text garbled");
             });
+            for (String newline : List.of("\n", "\r\n", "\r")) {
+                for (Charset encoding : List.of(StandardCharsets.UTF_8, StandardCharsets.UTF_16,
+                        Charset.forName("GB18030"))) {
+                    test("TXT chapter boundaries and blank lines: " + encoding + " / "
+                            + newline.replace("\r", "CR").replace("\n", "LF"), () -> {
+                        Path d = Files.createTempDirectory(root, "txt-lines-");
+                        Path source = d.resolve("book.txt");
+                        String first = "第一章 起点\n  正文<&>\n\n末段\n";
+                        String second = "第二章 终点\n尾声\n";
+                        Files.write(source, (first + second).replace("\n", newline).getBytes(encoding));
+                        byte[] original = Files.readAllBytes(source);
+                        Publication book = PublicationParser.open(source, d.resolve("out"));
+                        check(book.chapters.size() == 2, "Expected two chapters, got " + book.chapters.size());
+                        check(book.chapters.get(0).title.equals("第一章 起点")
+                                && book.chapters.get(1).title.equals("第二章 终点"), "Chapter labels changed");
+                        String html = Files.readString(book.chapters.get(0).path);
+                        check(html.contains("第一章 起点\n  正文&lt;&amp;&gt;\n\n末段\n</div>"),
+                                "Paragraphs, indentation or escaped text changed");
+                        check(Files.readString(book.chapters.get(1).path).contains("第二章 终点\n尾声\n"),
+                                "Final chapter text lost");
+                        check(Arrays.equals(original, Files.readAllBytes(source)), "Source TXT was modified");
+                    });
+                }
+            }
+            test("Mixed TXT line endings retain chapter boundaries", () -> {
+                Path source = root.resolve("mixed-lines.txt");
+                Files.writeString(source, "第一章 开始\r正文\r\n\r第二章 结束\n尾声");
+                Publication book = PublicationParser.open(source, root.resolve("mixed-lines"));
+                check(book.chapters.size() == 2, "Mixed endings lost a chapter");
+                check(Files.readString(book.chapters.get(0).path).contains("第一章 开始\n正文\n\n</div>"),
+                        "Mixed endings lost a blank line");
+            });
             test("UTF-16 EPUB markup is decoded according to its BOM", () -> {
                 Path p=root.resolve("utf16.xhtml");
                 Files.write(p,"<?xml version='1.0' encoding='UTF-16'?><html><body>正文中文</body></html>".getBytes(StandardCharsets.UTF_16));
